@@ -10,5 +10,7 @@
 Рабочие выполняющие программу параллельно
 ## server
 Хозян
+
 Dependens: gtk+-2.0
+
 Install GTK: `apt-get install libgtk2.0-dev`
