@@ -35,24 +35,33 @@ int main( int argc, char *argv[] ) {
   GtkWidget *label;  // Метка
   GtkWidget *window; // Главное окно (может содержать только один виджет!)
   GtkWidget *button; // Кнопка
+  GtkWidget *grid;   // Контейнер
 
   gtk_init(&argc, &argv);  // Инициализируем GTK+
 
-  window = gtk_window_new(GTK_WINDOW_TOPLEVEL);                 // Создаем главное окно
-  gtk_window_set_title(GTK_WINDOW(window),"Заголовок окна!");   // Устанавливаем заголовок окна
-  gtk_container_set_border_width (GTK_CONTAINER(window), 50);   // Устанавливаем внутренние границы
+  window = gtk_window_new(GTK_WINDOW_TOPLEVEL);                   // Создаем главное окно
+  gtk_window_set_title(GTK_WINDOW(window),"Заголовок окна!");     // Устанавливаем заголовок окна
+  gtk_window_set_default_size ( GTK_WINDOW ( window ), 400, 600); // Установка начального размера окна
+  gtk_container_set_border_width (GTK_CONTAINER(window), 50);     // Устанавливаем внутренние границы
 
-  //label = gtk_label_new( "Здравствуй, мир!" );     // Создаем метку с текстом
-  //gtk_container_add(GTK_CONTAINER(window), label); // Вставляем метку в главное окно
+  grid = gtk_grid_new (); // Создаем новый контейнер
+  gtk_container_add (GTK_CONTAINER (window), grid); // Помещем контейнер в окно
 
-  button = gtk_button_new_with_label("Привет, кнопка!"); 
-  gtk_container_add(GTK_CONTAINER(window), button); 
+  label = gtk_label_new( "Нажми на кнопку!" );      // Создаем метку с текстом
+  /* Помещем метку в контейнер, параметры из 4 цифр:
+   * позиция слева, позиция сверху, ширина и высота */
+  gtk_grid_attach (GTK_GRID (grid), label, 0, 0, 2, 2);
+
+  button = gtk_button_new_with_label("Первая кнопка");
+  g_signal_connect(GTK_BUTTON(button), "clicked", G_CALLBACK(welcome), NULL); // вызываем функцию welcome по нажатию
+  gtk_grid_attach (GTK_GRID (grid), button, 0, 2, 1, 1); // Помещем кнопку в контейнер
+
+  button = gtk_button_new_with_label("Вторая кнопка");
+  g_signal_connect(GTK_BUTTON(button), "clicked", G_CALLBACK(welcome), NULL); // вызываем функцию welcome по нажатию
+  gtk_grid_attach (GTK_GRID (grid), button, 2, 2, 1, 1); // Помещем кнопку в контейнер
 
   gtk_widget_show_all(window);  // Показываем окно вместе с виджетами
-
-  g_signal_connect(GTK_BUTTON(button), "clicked", G_CALLBACK(welcome), NULL); // вызываем функцию welcome по нажатию
-
   g_signal_connect(G_OBJECT(window), "destroy", G_CALLBACK(gtk_main_quit), NULL); // выйти из программы по закрытию
-  gtk_main();                                                // Приложение переходит в цикл ожидания
+  gtk_main();  // Приложение переходит в цикл ожидания
   return 0;
 }
