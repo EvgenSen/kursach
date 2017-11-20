@@ -63,7 +63,6 @@ int main( int argc, char *argv[] ) {
   gtk_window_set_default_size (GTK_WINDOW(window), width_w, height_w);   // Установка размеров окна (width * height) при запуске приложения 
 
   gint border = 20;                                                      // Размер рамки
-  
   gtk_container_set_border_width (GTK_CONTAINER(window), border);        // Устанавливаем внутренние границы
 
   grid = gtk_grid_new();                                       // Создание grid
