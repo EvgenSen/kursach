@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 
 #include "lib-trace.h"
 
@@ -25,5 +26,5 @@ void trace_msg(int type, char *format, ...)
     while (size && (str[size - 1] == '\n'))
         str[--size] = '\0';
 
-    fprintf(stderr, " #### %s%s\n", type == ERR_MSG ? "[ERR]" : "[DBG]", str);
+    fprintf(stderr, "%s%s\n", type == ERR_MSG ? "[ERR]" : "[DBG]", str);
 }

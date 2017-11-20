@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include "lib-trace.h"
+
 static GtkWidget *edit[2];    // Массив для полей ввода
 
 /* выводит приветствие */
@@ -33,6 +35,16 @@ void welcome (GtkButton *button, gpointer data) {
         gtk_widget_destroy(dialog);
 }
 
+int check_port(gint port)
+{
+  if (port > 65536 || port <= 0)
+  {
+    trace_msg(ERR_MSG, "[%s] Incorrect port value '%d' ", __FUNCTION__,port);
+    return 1;
+  }
+  return 0;
+}
+
 void click(GtkWidget *widget, GtkWidget *entry) {                 // Проверочная функция по передачи данных из полей ввода
 
   gchar *IP;
@@ -40,6 +52,10 @@ void click(GtkWidget *widget, GtkWidget *entry) {                 // Прове�
 
   IP = (gchar*)gtk_entry_get_text(GTK_ENTRY(edit[0]));
   PORT = atoi((gchar*)gtk_entry_get_text(GTK_ENTRY(edit[1])));
+
+  if (check_port(PORT))
+    return;
+
   g_print ("IP:  %s\n", IP);
   g_print ("PORT:  %d\n", PORT);
 
