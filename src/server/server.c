@@ -5,6 +5,7 @@
 #include "lib-trace.h"
 
 static GtkWidget *edit[2];    // Массив для полей ввода
+static GtkWidget *combo;      // ComboBox для списка
 
 /* выводит приветствие */
 void welcome (GtkButton *button, gpointer data) {
@@ -46,7 +47,6 @@ int check_port(gint port)
 }
 
 void click(GtkWidget *widget, GtkWidget *entry) {                 // Проверочная функция по передачи данных из полей ввода
-
   gchar *IP;
   gint PORT;
 
@@ -56,25 +56,42 @@ void click(GtkWidget *widget, GtkWidget *entry) {                 // Прове�
   if (check_port(PORT))
     return;
 
-  g_print ("IP:  %s\n", IP);
-  g_print ("PORT:  %d\n", PORT);
-
+  trace_msg(DBG_MSG, "[%s] IP address:  %s\n",__FUNCTION__, IP);
+  trace_msg(DBG_MSG, "[%s] Port:        %d\n",__FUNCTION__, PORT);
+  switch(gtk_combo_box_get_active(GTK_COMBO_BOX(combo)))
+  {  
+    case 0:  
+      trace_msg(DBG_MSG, "[%s] Action:      Find Max value in array\n",__FUNCTION__);
+      break;
+    case 1:  
+      trace_msg(DBG_MSG, "[%s] Action:      Find Min value in array\n",__FUNCTION__);
+      break;
+    case 2:  
+      trace_msg(DBG_MSG, "[%s] Action:      Sort array\n",__FUNCTION__);
+      break;
+    default:  
+      trace_msg(ERR_MSG, "[%s] Unknown action \n",__FUNCTION__);
+      break;
+  }
 }
 
 int main( int argc, char *argv[] ) {
   /* Описываем виджеты GTK */
-  GtkWidget *label;   // Метка
-  GtkWidget *window;  // Главное окно (может содержать только один виджет!)
-  GtkWidget *button;  // Кнопка
-  GtkWidget *grid;    // Grid
+  GtkWidget *label_ip;      // Метка (Текст перед полем)
+  GtkWidget *label_port;
+  GtkWidget *label_action;
+  GtkWidget *window;        // Главное окно (может содержать только один виджет!)
+  GtkWidget *button_start;  // Инициализация кнопки
+  GtkWidget *button_exit;
+  GtkWidget *grid;          // Grid
 
   gtk_init(&argc, &argv);  // Инициализируем GTK+
 
   window = gtk_window_new(GTK_WINDOW_TOPLEVEL);             // Создаем главное окно
   gtk_window_set_title(GTK_WINDOW(window),"Сервер");        // Устанавливаем заголовок окна
 
-  gint width_w = 300;                                                    // Ширина окна
-  gint height_w = 150;                                                   // Высота окна
+  gint width_w = 350;    // Ширина окна
+  gint height_w = 350;   // Высота окна
 
   gtk_window_set_default_size (GTK_WINDOW(window), width_w, height_w);   // Установка размеров окна (width * height) при запуске приложения
 
@@ -84,40 +101,45 @@ int main( int argc, char *argv[] ) {
   grid = gtk_grid_new();                                       // Создание grid
   gtk_container_add(GTK_CONTAINER(window), grid);              // Вставляем grid в главное окно
 
-  label = gtk_label_new("Ip-адрес сервера");                   // Создаем label
-  gtk_grid_attach(GTK_GRID(grid), label, 0, 0, 1, 1);          // Помещаем label в grid, аргументы 3-6 задают позицию виджета, 
+  label_ip = gtk_label_new("IP-адрес сервера");                // Создаем label
+  gtk_grid_attach(GTK_GRID(grid), label_ip, 0, 0, 1, 1);       // Помещаем label в grid, аргументы 3-6 задают позицию виджета, 
                                                                // 3 - номер колонки от левого края, 4 - номер строки от верхнего края,
                                                                // 5 - число колонок, на которые распространяется виджет,
-                                                               // 6 - число строк, на которые распространяется виджет  
+                                                               // 6 - число строк, на которые распространяется виджет
 
-  gint width_e = 200;                                                       // ширина поля ввода
+  gint width_e = 250;                                                       // ширина поля ввода
   gint height_e = 0;                                                        // высота поля ввода
 
   edit[0] = gtk_entry_new();                                                // создание первого поля ввода  
   gtk_widget_set_size_request(edit[0], width_e, height_e);                  // устанавливаем размеры поля ввода
-  gtk_grid_attach(GTK_GRID(grid), edit[0], 2, 0, 1, 1);
-  
   gtk_entry_set_text(GTK_ENTRY(edit[0]), "Введите IP-адрес сервера");       // Иницилизация начальной строки в поле ввода(edit[0])
-  
-  GtkWidget *label1;                                                    // Метка
+  gtk_grid_attach(GTK_GRID(grid), edit[0], 2, 0, 1, 1);
 
-  label1 = gtk_label_new("Порт сервера");                               // Создаем label1 
-  gtk_grid_attach(GTK_GRID(grid), label1, 0, 1, 1, 1);                  // Помещаем label1 в grid
+  label_port = gtk_label_new("Порт сервера");                               // Создаем label
+  gtk_grid_attach(GTK_GRID(grid), label_port, 0, 1, 1, 1);                  // Помещаем label в grid
 
   edit[1] = gtk_entry_new();                                               // Созданиe поля ввода
+  gtk_widget_set_size_request(edit[1], width_e, height_e);                 // устанавливаем размеры поля ввода
   gtk_entry_set_text(GTK_ENTRY(edit[1]), "Введите порт сервера");          // Иницилизация начальной строки в поле ввода(edit[1])
   gtk_grid_attach(GTK_GRID(grid), edit[1], 2, 1, 1, 1);
 
-  GtkWidget *button1;                                                        // объявлеие кнопки(button)
+  button_start = gtk_button_new_with_label("Запуск");                             // Создаем button
+  gtk_grid_attach(GTK_GRID(grid), button_start, 0, 3, 1, 1);                      // Помещаем button в grid 
+  g_signal_connect(GTK_BUTTON(button_start), "clicked", G_CALLBACK(click), NULL); // вызываем функцию click по нажатию button
 
-  button1 = gtk_button_new_with_label("Запуск");                             // Создаем button
-  gtk_grid_attach(GTK_GRID(grid), button1, 0, 2, 1, 1);                      // Помещаем button в grid 
-  g_signal_connect(GTK_BUTTON(button1), "clicked", G_CALLBACK(click), NULL); // вызываем функцию click по нажатию button
+  button_exit = gtk_button_new_with_label("Выход");                                           // создаем button1
+  g_signal_connect(GTK_BUTTON(button_exit), "clicked", G_CALLBACK(gtk_main_quit), NULL);      // вызываем функцию gtk_main_quit по нажатию
+  gtk_grid_attach(GTK_GRID(grid), button_exit, 2, 3, 1, 1);                                   // Помещаем button1 в grid
 
-  button1 = gtk_button_new_with_label("Выход");                                           // создаем button1
-  g_signal_connect(GTK_BUTTON(button1), "clicked", G_CALLBACK(gtk_main_quit), NULL);      // вызываем функцию gtk_main_quit по нажатию
-                                                                                          // button1 
-  gtk_grid_attach(GTK_GRID(grid), button1, 2, 2, 1, 1);                                   // Помещаем button1 в grid
+  label_action = gtk_label_new("Действие");                         // Создаем label
+  gtk_grid_attach(GTK_GRID(grid), label_action, 0, 2, 1, 1);        // Помещаем label в grid
+
+  combo = gtk_combo_box_text_new(); // Создаем ComboBox
+  gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo), NULL, "Find Max");
+  gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo), NULL, "Find Min");
+  gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo), NULL, "Sort array");
+  gtk_combo_box_set_active(GTK_COMBO_BOX(combo), 0);  // номер списка по умолчанию
+  gtk_grid_attach(GTK_GRID(grid), combo, 2, 2, 1, 1); // добавляем ComboBox в окно
 
   gtk_window_set_position (GTK_WINDOW(window), GTK_WIN_POS_CENTER); // Задает начальную позицию окна при запуске
 
