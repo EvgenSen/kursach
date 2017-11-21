@@ -5,8 +5,46 @@
 
 #include "lib-trace.h"
 
+#define FILE_NAME "input.txt"
+
 static GtkWidget *edit[2];    // Массив для полей ввода
 static GtkWidget *combo;      // ComboBox для списка
+
+int get_time ()
+{
+  struct timeval tv;
+  gettimeofday(&tv, 0); 
+  return (int)tv.tv_usec / 1000;
+}
+
+int read_array_from_file(int ** mass)
+{
+  FILE *f = NULL;
+  char *line = NULL;
+  size_t len = 0;
+  int i = 0;
+
+  f = fopen(FILE_NAME, "r");
+  if (f == NULL) {
+    trace_msg(ERR_MSG, "[%s] Can not open file\n",__FUNCTION__);
+    return -1;
+  }
+
+  while (getline(&line, &len, f) != -1)
+  {
+    (*mass)=realloc((*mass), sizeof(int*)*(i+1));
+    (*mass)[i] = atoi(line);
+    i++;
+  }
+  trace_msg(DBG_MSG, "[%s] Read %d numbers from '%s' \n",__FUNCTION__,i, FILE_NAME);
+
+  if (line != NULL) {
+    free(line);
+    line = NULL;
+  }
+  fclose(f);
+  return i;
+}
 
 /* выводит приветствие */
 void welcome (GtkButton *button, gpointer data) {
@@ -97,6 +135,12 @@ void click(GtkWidget *widget, GtkWidget *entry) {
   if (check_ip(IP) || check_port(PORT))
     return;
 
+  int start_t, stop_t;
+  int * mass = NULL;
+  int value;
+  start_t = get_time();
+  int k = read_array_from_file(&mass);
+
   trace_msg(DBG_MSG, "[%s] IP address:  %s\n",__FUNCTION__, IP);
   trace_msg(DBG_MSG, "[%s] Port:        %d\n",__FUNCTION__, PORT);
   switch(gtk_combo_box_get_active(GTK_COMBO_BOX(combo)))
@@ -114,6 +158,8 @@ void click(GtkWidget *widget, GtkWidget *entry) {
       trace_msg(ERR_MSG, "[%s] Unknown action \n",__FUNCTION__);
       break;
   }
+  stop_t = get_time();
+  trace_msg(DBG_MSG, "[%s] Time: %d ms\n",__FUNCTION__,stop_t - start_t);
 }
 
 int main( int argc, char *argv[] ) {
