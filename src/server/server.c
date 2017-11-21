@@ -1,6 +1,7 @@
 #include <gtk/gtk.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "lib-trace.h"
 
@@ -36,6 +37,45 @@ void welcome (GtkButton *button, gpointer data) {
         gtk_widget_destroy(dialog);
 }
 
+int check_ip(char *addr)
+{
+  if (!addr){
+    trace_msg(ERR_MSG, "[%s] Empty value ", __FUNCTION__);
+    return -1;
+  }
+
+  int x[4];
+  int dot = 0;
+  int i = 0;
+
+  for (; i< (int)strlen((const char *)addr); i++)
+  {
+    if (addr[i] == '.')
+      dot++;
+    else if (addr[i] < 48 || addr[i] > 57) {
+      trace_msg(ERR_MSG, "[%s] '%s' - Incorrect IP addres 1", __FUNCTION__,addr);
+      return -1;
+    }
+  }
+
+  if (dot != 3) {
+    trace_msg(ERR_MSG, "[%s] '%s' - Incorrect IP addres 2", __FUNCTION__,addr);
+    return -1;
+  }
+
+  if ((sscanf(addr, "%d.%d.%d.%d", &x[0], &x[1], &x[2], &x[3])) == 4)
+  {
+    for (i = 0; i < 4; i++)
+      if (x[i] < 0 || x[i] > 255){
+        trace_msg(ERR_MSG, "[%s] '%s' - Incorrect IP addres, out of range of values", __FUNCTION__,addr);
+        return -1;
+      }
+    return 0;
+  }
+  trace_msg(ERR_MSG, "[%s] '%s' - Incorrect IP addres 3", __FUNCTION__,addr);
+  return -1;
+}
+
 int check_port(gint port)
 {
   if (port > 65536 || port <= 0)
@@ -46,14 +86,15 @@ int check_port(gint port)
   return 0;
 }
 
-void click(GtkWidget *widget, GtkWidget *entry) {                 // Проверочная функция по передачи данных из полей ввода
+/* Обрабатываем входные данные и запускаем работу */
+void click(GtkWidget *widget, GtkWidget *entry) {
   gchar *IP;
   gint PORT;
 
   IP = (gchar*)gtk_entry_get_text(GTK_ENTRY(edit[0]));
   PORT = atoi((gchar*)gtk_entry_get_text(GTK_ENTRY(edit[1])));
 
-  if (check_port(PORT))
+  if (check_ip(IP) || check_port(PORT))
     return;
 
   trace_msg(DBG_MSG, "[%s] IP address:  %s\n",__FUNCTION__, IP);
