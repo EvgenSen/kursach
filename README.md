@@ -11,6 +11,6 @@
 ## server
 Хозян
 
-Dependens: gtk+-2.0
+Dependens: gtk+-3.0
 
-Install GTK: `apt-get install libgtk2.0-dev`
+Install GTK: `apt-get install build-essential libgtk-3-dev`
