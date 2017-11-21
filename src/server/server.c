@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "lib-trace.h"
+#include "lib-func.h"
 
 #define FILE_NAME "input.txt"
 
@@ -145,11 +146,13 @@ void click(GtkWidget *widget, GtkWidget *entry) {
   trace_msg(DBG_MSG, "[%s] Port:        %d\n",__FUNCTION__, PORT);
   switch(gtk_combo_box_get_active(GTK_COMBO_BOX(combo)))
   {  
-    case 0:  
-      trace_msg(DBG_MSG, "[%s] Action:      Find Max value in array\n",__FUNCTION__);
+    case 0:
+      value = find_value(mass, k , FIND_MAX);
+      trace_msg(DBG_MSG, "[%s] Action:      Find Max value in array (%d) \n",__FUNCTION__, value);
       break;
-    case 1:  
-      trace_msg(DBG_MSG, "[%s] Action:      Find Min value in array\n",__FUNCTION__);
+    case 1:
+      value = find_value(mass, k , FIND_MIN);
+      trace_msg(DBG_MSG, "[%s] Action:      Find Min value in array (%d)\n",__FUNCTION__, value);
       break;
     case 2:  
       trace_msg(DBG_MSG, "[%s] Action:      Sort array\n",__FUNCTION__);
@@ -159,7 +162,8 @@ void click(GtkWidget *widget, GtkWidget *entry) {
       break;
   }
   stop_t = get_time();
-  trace_msg(DBG_MSG, "[%s] Time: %d ms\n",__FUNCTION__,stop_t - start_t);
+  trace_msg(DBG_MSG, "[%s] Time: %d - %d = %d \n",__FUNCTION__, stop_t, start_t, (stop_t - start_t));
+  trace_msg(DBG_MSG, "[%s] Time: %d ms\n",__FUNCTION__, (stop_t - start_t) < 0 ? 1000 - start_t + stop_t : stop_t - start_t);
 }
 
 int main( int argc, char *argv[] ) {

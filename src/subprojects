@@ -1,3 +1,4 @@
 targets = lib-trace \
+	lib-func \
 	server \
 	generator
