@@ -14,7 +14,7 @@ static GtkWidget *combo;      // ComboBox для списка
 int get_time ()
 {
   struct timeval tv;
-  gettimeofday(&tv, 0); 
+  gettimeofday(&tv, 0);
   return (int)tv.tv_usec / 1000;
 }
 
@@ -145,7 +145,7 @@ void click(GtkWidget *widget, GtkWidget *entry) {
   trace_msg(DBG_MSG, "[%s] IP address:  %s\n",__FUNCTION__, IP);
   trace_msg(DBG_MSG, "[%s] Port:        %d\n",__FUNCTION__, PORT);
   switch(gtk_combo_box_get_active(GTK_COMBO_BOX(combo)))
-  {  
+  {
     case 0:
       value = find_value(mass, k , FIND_MAX);
       trace_msg(DBG_MSG, "[%s] Action:      Find Max value in array (%d) \n",__FUNCTION__, value);
@@ -154,10 +154,10 @@ void click(GtkWidget *widget, GtkWidget *entry) {
       value = find_value(mass, k , FIND_MIN);
       trace_msg(DBG_MSG, "[%s] Action:      Find Min value in array (%d)\n",__FUNCTION__, value);
       break;
-    case 2:  
+    case 2:
       trace_msg(DBG_MSG, "[%s] Action:      Sort array\n",__FUNCTION__);
       break;
-    default:  
+    default:
       trace_msg(ERR_MSG, "[%s] Unknown action \n",__FUNCTION__);
       break;
   }
@@ -193,7 +193,7 @@ int main( int argc, char *argv[] ) {
   gtk_container_add(GTK_CONTAINER(window), grid);              // Вставляем grid в главное окно
 
   label_ip = gtk_label_new("IP-адрес сервера");                // Создаем label
-  gtk_grid_attach(GTK_GRID(grid), label_ip, 0, 0, 1, 1);       // Помещаем label в grid, аргументы 3-6 задают позицию виджета, 
+  gtk_grid_attach(GTK_GRID(grid), label_ip, 0, 0, 1, 1);       // Помещаем label в grid, аргументы 3-6 задают позицию виджета,
                                                                // 3 - номер колонки от левого края, 4 - номер строки от верхнего края,
                                                                // 5 - число колонок, на которые распространяется виджет,
                                                                // 6 - число строк, на которые распространяется виджет
@@ -201,7 +201,7 @@ int main( int argc, char *argv[] ) {
   gint width_e = 250;                                                       // ширина поля ввода
   gint height_e = 0;                                                        // высота поля ввода
 
-  edit[0] = gtk_entry_new();                                                // создание первого поля ввода  
+  edit[0] = gtk_entry_new();                                                // создание первого поля ввода
   gtk_widget_set_size_request(edit[0], width_e, height_e);                  // устанавливаем размеры поля ввода
   gtk_entry_set_text(GTK_ENTRY(edit[0]), "Введите IP-адрес сервера");       // Иницилизация начальной строки в поле ввода(edit[0])
   gtk_grid_attach(GTK_GRID(grid), edit[0], 2, 0, 1, 1);
@@ -215,7 +215,7 @@ int main( int argc, char *argv[] ) {
   gtk_grid_attach(GTK_GRID(grid), edit[1], 2, 1, 1, 1);
 
   button_start = gtk_button_new_with_label("Запуск");                             // Создаем button
-  gtk_grid_attach(GTK_GRID(grid), button_start, 0, 3, 1, 1);                      // Помещаем button в grid 
+  gtk_grid_attach(GTK_GRID(grid), button_start, 0, 3, 1, 1);                      // Помещаем button в grid
   g_signal_connect(GTK_BUTTON(button_start), "clicked", G_CALLBACK(click), NULL); // вызываем функцию click по нажатию button
 
   button_exit = gtk_button_new_with_label("Выход");                                           // создаем button1
