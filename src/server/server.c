@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/socket.h> 
+#include <arpa/inet.h> 
+#include <unistd.h>    
 
 #include "lib-trace.h"
 #include "lib-func.h"
@@ -125,6 +128,58 @@ int check_port(gint port)
   return 0;
 }
 
+int create_socket(int sock, int port_serv) {
+
+  if ((sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0){
+    perror("socket() failed");
+    exit(1);
+  }
+
+  struct sockaddr_in echoServAddr;
+
+  /* Construct local address structure */
+  memset(&echoServAddr, 0, sizeof(echoServAddr));   /* Zero out structure */
+  echoServAddr.sin_family = AF_INET;                /* Internet address family */
+  echoServAddr.sin_addr.s_addr = htonl(INADDR_ANY); /* Any incoming interface */
+  echoServAddr.sin_port = htons(port_serv);              /* Local port */
+
+  /* Bind to the local address */
+  if (bind(sock, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr)) < 0) {
+    perror("bind() failed");
+    exit(1);
+  }
+
+  if (listen(sock, 5) < 0) {
+    perror("listen() failed");
+    exit(1);
+  }
+
+  struct sockaddr_in echoClntAddr; /* Client address */
+  unsigned int clntLen;            /* Length of client address data structure */
+
+  /* Set the size of the in-out parameter */
+  clntLen = sizeof(echoClntAddr);
+
+  /* Mark the socket so it will listen for incoming connections */
+  if ((sock = accept(sock, (struct sockaddr *) &echoClntAddr, &clntLen)) < 0) {
+    perror("accept() failed");
+    exit(1);
+  }
+
+  return sock;
+}
+
+void send_data(int sock, int* data, int size_of_data) {
+
+  if (send(sock, data, size_of_data, 0) != size_of_data) {
+    perror("send() failed");
+    exit(1);
+  }
+  else {
+    printf("Массив отправлен: \n");
+  }
+}
+
 /* Обрабатываем входные данные и запускаем работу */
 void click(GtkWidget *widget, GtkWidget *entry) {
   gchar *IP;
@@ -144,6 +199,15 @@ void click(GtkWidget *widget, GtkWidget *entry) {
 
   trace_msg(DBG_MSG, "[%s] IP address:  %s\n",__FUNCTION__, IP);
   trace_msg(DBG_MSG, "[%s] Port:        %d\n",__FUNCTION__, PORT);
+
+  /*Create sock */
+
+  int sock;
+  int size_of_mas = sizeof(int)*k;
+
+  sock = create_socket(sock, PORT);
+  send_data(sock, mass, size_of_mas);
+
   switch(gtk_combo_box_get_active(GTK_COMBO_BOX(combo)))
   {
     case 0:
