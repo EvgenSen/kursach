@@ -40,7 +40,7 @@ int main( int argc, char *argv[] ) {
         exit(1);
     }
 
-    int const n = 500;
+    int const n = 1000;
 
     int mas[n];
     int size_of_mas = sizeof(int) * n;

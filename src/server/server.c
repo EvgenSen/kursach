@@ -196,6 +196,7 @@ void click(GtkWidget *widget, GtkWidget *entry) {
   int value;
   start_t = get_time();
   int k = read_array_from_file(&mass);
+  printf("k = %d\n", k);
 
   trace_msg(DBG_MSG, "[%s] IP address:  %s\n",__FUNCTION__, IP);
   trace_msg(DBG_MSG, "[%s] Port:        %d\n",__FUNCTION__, PORT);
