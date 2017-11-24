@@ -12,7 +12,7 @@
 
 #define FILE_NAME "input.txt"
 
-static GtkWidget *edit[2];    // Массив для полей ввода
+static GtkWidget *edit[1];    // Массив для полей ввода
 static GtkWidget *combo;      // ComboBox для списка
 
 int get_time ()
@@ -80,45 +80,6 @@ void welcome (GtkButton *button, gpointer data) {
         gtk_widget_destroy(dialog);
 }
 
-int check_ip(char *addr)
-{
-  if (!addr){
-    trace_msg(ERR_MSG, "[%s] Empty value ", __FUNCTION__);
-    return -1;
-  }
-
-  int x[4];
-  int dot = 0;
-  int i = 0;
-
-  for (; i< (int)strlen((const char *)addr); i++)
-  {
-    if (addr[i] == '.')
-      dot++;
-    else if (addr[i] < 48 || addr[i] > 57) {
-      trace_msg(ERR_MSG, "[%s] '%s' - Incorrect IP addres 1", __FUNCTION__,addr);
-      return -1;
-    }
-  }
-
-  if (dot != 3) {
-    trace_msg(ERR_MSG, "[%s] '%s' - Incorrect IP addres 2", __FUNCTION__,addr);
-    return -1;
-  }
-
-  if ((sscanf(addr, "%d.%d.%d.%d", &x[0], &x[1], &x[2], &x[3])) == 4)
-  {
-    for (i = 0; i < 4; i++)
-      if (x[i] < 0 || x[i] > 255){
-        trace_msg(ERR_MSG, "[%s] '%s' - Incorrect IP addres, out of range of values", __FUNCTION__,addr);
-        return -1;
-      }
-    return 0;
-  }
-  trace_msg(ERR_MSG, "[%s] '%s' - Incorrect IP addres 3", __FUNCTION__,addr);
-  return -1;
-}
-
 int check_port(gint port)
 {
   if (port > 65536 || port <= 0)
@@ -132,7 +93,7 @@ int check_port(gint port)
 int create_socket(int sock, int port_serv) {
 
   if ((sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0){
-    trace_msg(ERR_MSG, "[%s], socket() failed", __FUNCTION__);
+    trace_msg(ERR_MSG, "[%s], Server: socket() failed", __FUNCTION__);
     exit(1);
   }
 
@@ -146,12 +107,12 @@ int create_socket(int sock, int port_serv) {
 
   /* Bind to the local address */
   if (bind(sock, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr)) < 0) {
-    trace_msg(ERR_MSG, "[%s], bind() failed", __FUNCTION__);
+    trace_msg(ERR_MSG, "[%s], Server: bind() failed", __FUNCTION__);
     exit(1);
   }
 
   if (listen(sock, 5) < 0) {
-    trace_msg(ERR_MSG, "[%s], listen() failed", __FUNCTION__);
+    trace_msg(ERR_MSG, "[%s], Server: listen() failed", __FUNCTION__);
     exit(1);
   }
 
@@ -163,7 +124,7 @@ int create_socket(int sock, int port_serv) {
 
   /* Mark the socket so it will listen for incoming connections */
   if ((sock = accept(sock, (struct sockaddr *) &echoClntAddr, &clntLen)) < 0) {
-    trace_msg(ERR_MSG, "[%s], accept() failed", __FUNCTION__);
+    trace_msg(ERR_MSG, "[%s], Server: accept() failed", __FUNCTION__);
     exit(1);
   }
 
@@ -173,35 +134,56 @@ int create_socket(int sock, int port_serv) {
 void send_data(int sock, int* data, int size_of_data) {
 
   if (send(sock, data, size_of_data, 0) != size_of_data) {
-    trace_msg(ERR_MSG, "[%s], send() failed", __FUNCTION__);
+    trace_msg(ERR_MSG, "[%s], Server: send() failed", __FUNCTION__);
     exit(1);
   }
   else {
-    trace_msg(DBG_MSG, "[%s] Massive has sended.\n",__FUNCTION__);
+    trace_msg(DBG_MSG, "[%s], Server: massive has sended.\n",__FUNCTION__);
   }
+}
+
+void send_action(int sock, int action) {
+
+  if (send(sock, &action, sizeof(int), 0) != sizeof(int)) {
+    trace_msg(ERR_MSG, "[%s], Server: send() failed", __FUNCTION__);
+    exit(1);
+  }
+  else {
+    trace_msg(DBG_MSG, "[%s], Server: action has sended.\n",__FUNCTION__);
+  }
+}
+
+int recv_value(int sock, int value_cl) {
+
+    int bytesRecv;
+
+    if ((bytesRecv = recv(sock, &value_cl, sizeof(int), 0)) <= 0) {
+        trace_msg(ERR_MSG, "[%s], Server: recv_value()) failed", __FUNCTION__);
+        exit(1);
+    } else {
+      trace_msg(DBG_MSG, "[%s], Server: value has sended.\n",__FUNCTION__);
+    }
+
+    return value_cl;
 }
 
 /* Обрабатываем входные данные и запускаем работу */
 void click(GtkWidget *widget, GtkWidget *entry) {
-  gchar *IP;
   gint PORT;
 
-  IP = (gchar*)gtk_entry_get_text(GTK_ENTRY(edit[0]));
-  PORT = atoi((gchar*)gtk_entry_get_text(GTK_ENTRY(edit[1])));
+  PORT = atoi((gchar*)gtk_entry_get_text(GTK_ENTRY(edit[0])));
 
-  if (check_ip(IP) || check_port(PORT))
+  if (check_port(PORT))
     return;
 
   int start_t, stop_t;
   int * mass = NULL;
-  int value;
+  int value_s;
+  int value_cl;
   start_t = get_time();
   int k = read_array_from_file(&mass);
 
-  trace_msg(DBG_MSG, "[%s] IP address:  %s\n",__FUNCTION__, IP);
   trace_msg(DBG_MSG, "[%s] Port:        %d\n",__FUNCTION__, PORT);
-
-  /*Create sock */
 
   int sock;
   int size_of_mas = sizeof(int)*k;
@@ -212,18 +194,24 @@ void click(GtkWidget *widget, GtkWidget *entry) {
   switch(gtk_combo_box_get_active(GTK_COMBO_BOX(combo)))
   {
     case 0:
-      value = find_value(mass, k , FIND_MAX);
-      trace_msg(DBG_MSG, "[%s] Action:      Find Max value in array (%d) \n",__FUNCTION__, value);
+      send_action(sock, FIND_MAX);
+      value_s = find_value(mass, k , FIND_MAX);
+      trace_msg(DBG_MSG, "[%s], Server: action - find Max value in array (%d) \n",__FUNCTION__, value_s);
+      value_cl = recv_value(sock, value_cl);
+      trace_msg(DBG_MSG, "[%s], Client: action - find Max value in array (%d) \n",__FUNCTION__, value_cl);
       break;
     case 1:
-      value = find_value(mass, k , FIND_MIN);
-      trace_msg(DBG_MSG, "[%s] Action:      Find Min value in array (%d)\n",__FUNCTION__, value);
+      send_action(sock, FIND_MIN);
+      value_s= find_value(mass, k , FIND_MIN);
+      trace_msg(DBG_MSG, "[%s], Server: action - find Min value in array (%d)\n",__FUNCTION__, value_s);
+      value_cl = recv_value(sock, value_cl);
+      trace_msg(DBG_MSG, "[%s], Client: action - find Max value in array (%d) \n",__FUNCTION__, value_cl);
       break;
     case 2:
-      trace_msg(DBG_MSG, "[%s] Action:      Sort array\n",__FUNCTION__);
+      trace_msg(DBG_MSG, "[%s], Server: action - Sort array\n",__FUNCTION__);
       break;
     default:
-      trace_msg(ERR_MSG, "[%s] Unknown action \n",__FUNCTION__);
+      trace_msg(ERR_MSG, "[%s], Server: action - Unknown action \n",__FUNCTION__);
       break;
   }
   stop_t = get_time();
@@ -257,27 +245,16 @@ int main( int argc, char *argv[] ) {
   grid = gtk_grid_new();                                       // Создание grid
   gtk_container_add(GTK_CONTAINER(window), grid);              // Вставляем grid в главное окно
 
-  label_ip = gtk_label_new("IP-адрес сервера");                // Создаем label
-  gtk_grid_attach(GTK_GRID(grid), label_ip, 0, 0, 1, 1);       // Помещаем label в grid, аргументы 3-6 задают позицию виджета,
-                                                               // 3 - номер колонки от левого края, 4 - номер строки от верхнего края,
-                                                               // 5 - число колонок, на которые распространяется виджет,
-                                                               // 6 - число строк, на которые распространяется виджет
-
   gint width_e = 250;                                                       // ширина поля ввода
   gint height_e = 0;                                                        // высота поля ввода
 
   edit[0] = gtk_entry_new();                                                // создание первого поля ввода
   gtk_widget_set_size_request(edit[0], width_e, height_e);                  // устанавливаем размеры поля ввода
-  gtk_entry_set_text(GTK_ENTRY(edit[0]), "Введите IP-адрес сервера");       // Иницилизация начальной строки в поле ввода(edit[0])
-  gtk_grid_attach(GTK_GRID(grid), edit[0], 2, 0, 1, 1);
-
   label_port = gtk_label_new("Порт сервера");                               // Создаем label
   gtk_grid_attach(GTK_GRID(grid), label_port, 0, 1, 1, 1);                  // Помещаем label в grid
 
-  edit[1] = gtk_entry_new();                                               // Созданиe поля ввода
-  gtk_widget_set_size_request(edit[1], width_e, height_e);                 // устанавливаем размеры поля ввода
-  gtk_entry_set_text(GTK_ENTRY(edit[1]), "Введите порт сервера");          // Иницилизация начальной строки в поле ввода(edit[1])
-  gtk_grid_attach(GTK_GRID(grid), edit[1], 2, 1, 1, 1);
+  gtk_entry_set_text(GTK_ENTRY(edit[0]), "Введите порт сервера");          // Иницилизация начальной строки в поле ввода(edit[1])
+  gtk_grid_attach(GTK_GRID(grid), edit[0], 2, 1, 1, 1);
 
   button_start = gtk_button_new_with_label("Запуск");                             // Создаем button
   gtk_grid_attach(GTK_GRID(grid), button_start, 0, 3, 1, 1);                      // Помещаем button в grid

@@ -11,7 +11,7 @@
 int create_socket(int sock, int port, char *IP) {
 
     if ((sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
-        trace_msg(ERR_MSG, "[%s], socket() failed", __FUNCTION__);
+        trace_msg(ERR_MSG, "[%s], Client: socket() failed", __FUNCTION__);
         exit(1);
     }
 
@@ -25,7 +25,7 @@ int create_socket(int sock, int port, char *IP) {
     /* Bind to the local address */
     
     if (connect(sock, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr)) < 0) {
-        trace_msg(ERR_MSG, "[%s], connect() failed", __FUNCTION__);
+        trace_msg(ERR_MSG, "[%s], Client: connect() failed", __FUNCTION__);
         exit(1);
     }
 
@@ -37,13 +37,35 @@ int* recv_data(int sock, int* mas, int size_of_mas) {
     int bytesRecv;
 
     if ((bytesRecv = recv(sock, mas, size_of_mas, 0)) <= 0) {
-        trace_msg(ERR_MSG, "[%s], recv() failed", __FUNCTION__);
+        trace_msg(ERR_MSG, "[%s], Client: recv_data() failed", __FUNCTION__);
         exit(1);
     }
 
     return mas;
 }
 
+int recv_act(int sock, int act) {
+
+    int bytesRecv;
+
+    if ((bytesRecv = recv(sock, &act, sizeof(int), 0)) <= 0) {
+        trace_msg(ERR_MSG, "[%s], Client: recv_act()) failed", __FUNCTION__);
+        exit(1);
+    }
+
+    return act;
+}
+
+void send_value(int sock, int value) {
+
+    if (send(sock, &value, sizeof(int), 0) != sizeof(int)) {
+        trace_msg(ERR_MSG, "[%s], Client: send_value() failed", __FUNCTION__);
+        exit(1);
+    }
+    else {
+        trace_msg(DBG_MSG, "[%s], Client: value has sended.\n",__FUNCTION__);
+    }
+}
 
 int main( int argc, char *argv[] ) {
                             
@@ -66,7 +88,15 @@ int main( int argc, char *argv[] ) {
     sock = create_socket(sock, port, servIP);
     mas = recv_data(sock, mas, size_of_mas);
     
-    trace_msg(DBG_MSG, "[%s] Massage from server.\n",__FUNCTION__);
+    trace_msg(DBG_MSG, "[%s], Client: massage from server accept.\n",__FUNCTION__);
+
+    int action;
+
+    action = recv_act(sock, action);
+    trace_msg(DBG_MSG, "[%s], Client: action from server accept.\n",__FUNCTION__);
+
+    int value = find_value(mas, n, action);
+    send_value(sock, value);
 
     return 0;
 
