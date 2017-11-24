@@ -183,19 +183,37 @@ void click(GtkWidget *widget, GtkWidget *entry) {
   start_t = get_time();
   int k = read_array_from_file(&mass);
 
+  /* Share mass */
+
+  int n = 3;                                                // n - кол-во подмассивов, на которое будет разбит массив
+
+  int **submas;                                             
+  submas = malloc(sizeof(int*)*n);
+
+  int i = 0;
+
+  for(int j = 0; j < n; j++) {
+    submas[j] = malloc(sizeof(int)*(k/n));
+    for(int l = 0; l < k/n; l++) {
+      submas[j][l] = mass[i];
+      i++;
+    }
+  }
+
+  /* Share mass */
   trace_msg(DBG_MSG, "[%s] Port:        %d\n",__FUNCTION__, PORT);
 
   int sock;
-  int size_of_mas = sizeof(int)*k;
+  int size_of_mas = sizeof(int)*(k/n);
 
   sock = create_socket(sock, PORT);
-  send_data(sock, mass, size_of_mas);
+  send_data(sock, submas[2], size_of_mas);
 
   switch(gtk_combo_box_get_active(GTK_COMBO_BOX(combo)))
   {
     case 0:
       send_action(sock, FIND_MAX);
-      value_s = find_value(mass, k , FIND_MAX);
+      value_s = find_value(submas[2], k/n , FIND_MAX);
       trace_msg(DBG_MSG, "[%s], Server: action - find Max value in array (%d) \n",__FUNCTION__, value_s);
       value_cl = recv_value(sock, value_cl);
       trace_msg(DBG_MSG, "[%s], Client: action - find Max value in array (%d) \n",__FUNCTION__, value_cl);
@@ -205,7 +223,7 @@ void click(GtkWidget *widget, GtkWidget *entry) {
       value_s= find_value(mass, k , FIND_MIN);
       trace_msg(DBG_MSG, "[%s], Server: action - find Min value in array (%d)\n",__FUNCTION__, value_s);
       value_cl = recv_value(sock, value_cl);
-      trace_msg(DBG_MSG, "[%s], Client: action - find Max value in array (%d) \n",__FUNCTION__, value_cl);
+      trace_msg(DBG_MSG, "[%s], Client: action - find Min value in array (%d) \n",__FUNCTION__, value_cl);
       break;
     case 2:
       trace_msg(DBG_MSG, "[%s], Server: action - Sort array\n",__FUNCTION__);

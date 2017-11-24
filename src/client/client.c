@@ -80,13 +80,17 @@ int main( int argc, char *argv[] ) {
     port = atoi(argv[1]);
 
     int sock;
-    int const n = 1000;
+    int const n = 333;
     int *mas;
     int size_of_mas = sizeof(int) * n;
 
     mas = malloc(size_of_mas);
     sock = create_socket(sock, port, servIP);
     mas = recv_data(sock, mas, size_of_mas);
+
+    for(int i = 0; i < n; i++) {
+    trace_msg(DBG_MSG, "mas[%d] = %d\n", i, mas[i]);
+  }
     
     trace_msg(DBG_MSG, "[%s], Client: massage from server accept.\n",__FUNCTION__);
 
@@ -94,7 +98,7 @@ int main( int argc, char *argv[] ) {
 
     action = recv_act(sock, action);
     trace_msg(DBG_MSG, "[%s], Client: action from server accept.\n",__FUNCTION__);
-
+    
     int value = find_value(mas, n, action);
     send_value(sock, value);
 
