@@ -1,4 +1,5 @@
 targets = lib-trace \
 	lib-func \
 	server \
+	client \
 	generator

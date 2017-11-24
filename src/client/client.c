@@ -3,8 +3,47 @@
 #include <arpa/inet.h>  
 #include <stdlib.h>     
 #include <string.h>     
-#include <unistd.h>     
 #include <time.h>
+
+#include "lib-trace.h"
+#include "lib-func.h"
+
+int create_socket(int sock, int port, char *IP) {
+
+    if ((sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
+        trace_msg(ERR_MSG, "[%s], socket() failed", __FUNCTION__);
+        exit(1);
+    }
+
+    struct sockaddr_in echoServAddr;
+    /* Construct local address structure */
+    memset(&echoServAddr, 0, sizeof(echoServAddr));   /* Zero out structure */
+    echoServAddr.sin_family = AF_INET;                /* Internet address family */
+    echoServAddr.sin_addr.s_addr = inet_addr(IP);    /* Any incoming interface */
+    echoServAddr.sin_port = htons(port);              /* Local port */
+
+    /* Bind to the local address */
+    
+    if (connect(sock, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr)) < 0) {
+        trace_msg(ERR_MSG, "[%s], connect() failed", __FUNCTION__);
+        exit(1);
+    }
+
+    return sock;
+}
+
+int* recv_data(int sock, int* mas, int size_of_mas) {
+
+    int bytesRecv;
+
+    if ((bytesRecv = recv(sock, mas, size_of_mas, 0)) <= 0) {
+        trace_msg(ERR_MSG, "[%s], recv() failed", __FUNCTION__);
+        exit(1);
+    }
+
+    return mas;
+}
+
 
 int main( int argc, char *argv[] ) {
                             
@@ -19,46 +58,15 @@ int main( int argc, char *argv[] ) {
     port = atoi(argv[1]);
 
     int sock;
-
-    if ((sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
-        perror("socket() failed");
-        exit(1);
-    }
-
-    struct sockaddr_in echoServAddr;
-
-    /* Construct local address structure */
-    memset(&echoServAddr, 0, sizeof(echoServAddr));   /* Zero out structure */
-    echoServAddr.sin_family = AF_INET;                /* Internet address family */
-    echoServAddr.sin_addr.s_addr = inet_addr(servIP);    /* Any incoming interface */
-    echoServAddr.sin_port = htons(port);              /* Local port */
-
-    /* Bind to the local address */
-    
-    if (connect(sock, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr)) < 0) {
-        perror("connect() failed");
-        exit(1);
-    }
-
     int const n = 1000;
-
-    int mas[n];
+    int *mas;
     int size_of_mas = sizeof(int) * n;
-    int bytesRecv;
 
-    if ((bytesRecv = recv(sock, mas, size_of_mas, 0)) <= 0) {
-        perror("recv() failed");
-        exit(1);
-    }
-
-    printf("$@#@\n");
-    int i;
-
-    for ( i = 0; i < n; i++) {
-        printf("mas[%d] = %d\n", i, mas[i]);
-    }
-    printf("\n");
-    printf("<<< Пришел ответ от сервера >>>\n");
+    mas = malloc(size_of_mas);
+    sock = create_socket(sock, port, servIP);
+    mas = recv_data(sock, mas, size_of_mas);
+    
+    trace_msg(DBG_MSG, "[%s] Massage from server.\n",__FUNCTION__);
 
     return 0;
 

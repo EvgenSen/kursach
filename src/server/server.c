@@ -4,8 +4,9 @@
 #include <string.h>
 #include <sys/socket.h> 
 #include <arpa/inet.h> 
-#include <unistd.h>    
-
+#include <time.h>
+#include <sys/time.h>  
+  
 #include "lib-trace.h"
 #include "lib-func.h"
 
@@ -131,7 +132,7 @@ int check_port(gint port)
 int create_socket(int sock, int port_serv) {
 
   if ((sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0){
-    perror("socket() failed");
+    trace_msg(ERR_MSG, "[%s], socket() failed", __FUNCTION__);
     exit(1);
   }
 
@@ -145,12 +146,12 @@ int create_socket(int sock, int port_serv) {
 
   /* Bind to the local address */
   if (bind(sock, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr)) < 0) {
-    perror("bind() failed");
+    trace_msg(ERR_MSG, "[%s], bind() failed", __FUNCTION__);
     exit(1);
   }
 
   if (listen(sock, 5) < 0) {
-    perror("listen() failed");
+    trace_msg(ERR_MSG, "[%s], listen() failed", __FUNCTION__);
     exit(1);
   }
 
@@ -162,7 +163,7 @@ int create_socket(int sock, int port_serv) {
 
   /* Mark the socket so it will listen for incoming connections */
   if ((sock = accept(sock, (struct sockaddr *) &echoClntAddr, &clntLen)) < 0) {
-    perror("accept() failed");
+    trace_msg(ERR_MSG, "[%s], accept() failed", __FUNCTION__);
     exit(1);
   }
 
@@ -172,11 +173,11 @@ int create_socket(int sock, int port_serv) {
 void send_data(int sock, int* data, int size_of_data) {
 
   if (send(sock, data, size_of_data, 0) != size_of_data) {
-    perror("send() failed");
+    trace_msg(ERR_MSG, "[%s], send() failed", __FUNCTION__);
     exit(1);
   }
   else {
-    printf("Массив отправлен: \n");
+    trace_msg(DBG_MSG, "[%s] Massive has sended.\n",__FUNCTION__);
   }
 }
 
@@ -196,7 +197,6 @@ void click(GtkWidget *widget, GtkWidget *entry) {
   int value;
   start_t = get_time();
   int k = read_array_from_file(&mass);
-  printf("k = %d\n", k);
 
   trace_msg(DBG_MSG, "[%s] IP address:  %s\n",__FUNCTION__, IP);
   trace_msg(DBG_MSG, "[%s] Port:        %d\n",__FUNCTION__, PORT);

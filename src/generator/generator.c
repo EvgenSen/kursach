@@ -1,5 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
+#include <sys/time.h>  
 
 #define FILE_NAME "input.txt"
 

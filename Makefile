@@ -29,7 +29,7 @@ config.mk:
 	@echo "# Generated automatically - do not edit!" > config.mk
 	@echo "" >> config.mk
 	@echo "export CC=gcc" >> config.mk
-	#@echo "export CFLAGS=-std=c99" >> config.mk
+	@echo "export CFLAGS=-std=c99" >> config.mk
 	@echo "" >> config.mk
 	@echo "export DIR_PROJECT=$(PWD)" >> config.mk
 	@echo "export DIR_OUT=$(PWD)/out" >> config.mk
