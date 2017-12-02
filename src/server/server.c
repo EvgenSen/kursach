@@ -12,8 +12,10 @@
 
 #define FILE_NAME "input.txt"
 
-static GtkWidget *edit[1];    // Массив для полей ввода
-static GtkWidget *combo;      // ComboBox для списка
+static GtkWidget *edit[3];    // Массив для полей ввода
+static GtkWidget *combo[3];      // ComboBox для списка
+// static GtkWidget *combo_cl_2;      // ComboBox для списка
+// static GtkWidget *combo_cl_3;      // ComboBox для списка
 
 int get_time ()
 {
@@ -80,12 +82,23 @@ void welcome (GtkButton *button, gpointer data) {
         gtk_widget_destroy(dialog);
 }
 
-int check_port(gint port)
+int check_port(int port)
 {
   if (port > 65536 || port <= 0)
   {
     trace_msg(ERR_MSG, "[%s] Incorrect port value '%d' ", __FUNCTION__,port);
     return 1;
+  }
+  return 0;
+}
+
+int check_sameport(int port[], int size) {
+
+  for(int i = 0; i < size - 1; i++) {
+    if(port[i] == port[i+1]) {
+      trace_msg(ERR_MSG, "[%s] Same ports '%d' and  '%d', choise other number of port", __FUNCTION__,port[i],port[i+1]);
+      return 1;
+    }
   }
   return 0;
 }
@@ -142,39 +155,61 @@ void send_data(int sock, int* data, int size_of_data) {
   }
 }
 
-void send_action(int sock, int action) {
+void send_value(int sock, int value) {
 
-  if (send(sock, &action, sizeof(int), 0) != sizeof(int)) {
+  if (send(sock, &value, sizeof(int), 0) != sizeof(int)) {
     trace_msg(ERR_MSG, "[%s], Server: send() failed", __FUNCTION__);
     exit(1);
   }
   else {
-    trace_msg(DBG_MSG, "[%s], Server: action has sended.\n",__FUNCTION__);
+    trace_msg(DBG_MSG, "[%s], Server: value has sended.\n",__FUNCTION__);
   }
 }
 
 int recv_value(int sock, int value_cl) {
 
-    int bytesRecv;
+  int bytesRecv;
 
-    if ((bytesRecv = recv(sock, &value_cl, sizeof(int), 0)) <= 0) {
-        trace_msg(ERR_MSG, "[%s], Server: recv_value()) failed", __FUNCTION__);
-        exit(1);
-    } else {
-      trace_msg(DBG_MSG, "[%s], Server: value has sended.\n",__FUNCTION__);
-    }
+  if ((bytesRecv = recv(sock, &value_cl, sizeof(int), 0)) <= 0) {
+    trace_msg(ERR_MSG, "[%s], Server: recv_value()) failed", __FUNCTION__);
+    exit(1);
+  } else {
+    trace_msg(DBG_MSG, "[%s], Server: value has sended.\n",__FUNCTION__);
+  }
 
-    return value_cl;
+  return value_cl;
 }
 
+int* recv_mass(int sock, int mass[], int size_of_mas) {
+
+  int bytesRecv;
+
+  if ((bytesRecv = recv(sock, mass, size_of_mas, 0)) <= 0) {
+    trace_msg(ERR_MSG, "[%s], Server: recv_value()) failed", __FUNCTION__);
+    exit(1);
+  } else {
+    trace_msg(DBG_MSG, "[%s], Server: value has sended.\n",__FUNCTION__);
+  }
+
+  return mass;
+}
 /* Обрабатываем входные данные и запускаем работу */
 void click(GtkWidget *widget, GtkWidget *entry) {
-  gint PORT;
 
-  PORT = atoi((gchar*)gtk_entry_get_text(GTK_ENTRY(edit[0])));
+  int n = 3;  
+  int PORT[n];
 
-  if (check_port(PORT))
-    return;
+  for(int i = 0; i < n; i++) {
+    PORT[i] = atoi((gchar*)gtk_entry_get_text(GTK_ENTRY(edit[i])));
+  }
+
+  for(int i = 0; i < n; i++) {
+    if (check_port(PORT[i]))
+        return 0;
+  }
+
+  if (check_sameport(PORT, n))
+    return 0;
 
   int start_t, stop_t;
   int * mass = NULL;
@@ -183,16 +218,13 @@ void click(GtkWidget *widget, GtkWidget *entry) {
   start_t = get_time();
   int k = read_array_from_file(&mass);
 
-  /* Share mass */
-
-  int n = 3;                                                // n - кол-во подмассивов, на которое будет разбит массив
+  /*Start Share mass */
 
   int **submas;                                             
   submas = malloc(sizeof(int*)*n);
 
-  int i = 0;
-
   for(int j = 0; j < n; j++) {
+    int i = 0;
     submas[j] = malloc(sizeof(int)*(k/n));
     for(int l = 0; l < k/n; l++) {
       submas[j][l] = mass[i];
@@ -200,48 +232,65 @@ void click(GtkWidget *widget, GtkWidget *entry) {
     }
   }
 
-  /* Share mass */
-  trace_msg(DBG_MSG, "[%s] Port:        %d\n",__FUNCTION__, PORT);
+  /*End Share mass */
+  trace_msg(DBG_MSG, "[%s] Port:        %d\n",__FUNCTION__, PORT[0]);
 
   int sock;
   int size_of_mas = sizeof(int)*(k/n);
 
-  sock = create_socket(sock, PORT);
-  send_data(sock, submas[2], size_of_mas);
+  sock = create_socket(sock, PORT[0]);
+  send_value(sock, k/n);
+  send_data(sock, submas[0], size_of_mas);
 
-  switch(gtk_combo_box_get_active(GTK_COMBO_BOX(combo)))
+
+  switch(gtk_combo_box_get_active(GTK_COMBO_BOX(combo[0])))
   {
     case 0:
-      send_action(sock, FIND_MAX);
-      value_s = find_value(submas[2], k/n , FIND_MAX);
+      send_value(sock, FIND_MAX);
+      value_s = find_value(submas[0], k/n , FIND_MAX);
       trace_msg(DBG_MSG, "[%s], Server: action - find Max value in array (%d) \n",__FUNCTION__, value_s);
       value_cl = recv_value(sock, value_cl);
       trace_msg(DBG_MSG, "[%s], Client: action - find Max value in array (%d) \n",__FUNCTION__, value_cl);
       break;
     case 1:
-      send_action(sock, FIND_MIN);
-      value_s= find_value(mass, k , FIND_MIN);
+      send_value(sock, FIND_MIN);
+      value_s = find_value(submas[0], k/n, FIND_MIN);
       trace_msg(DBG_MSG, "[%s], Server: action - find Min value in array (%d)\n",__FUNCTION__, value_s);
       value_cl = recv_value(sock, value_cl);
       trace_msg(DBG_MSG, "[%s], Client: action - find Min value in array (%d) \n",__FUNCTION__, value_cl);
       break;
     case 2:
+      send_value(sock, SORT);
+      submas[0] = sort(submas[0], k/n, SORT);
       trace_msg(DBG_MSG, "[%s], Server: action - Sort array\n",__FUNCTION__);
+      for(int i = 0; i < k/n; i++) {
+        trace_msg(DBG_MSG, "%d ", submas[0][i]);
+      }
+      send_value(sock, SORT);
+      submas[0] = recv_mass(sock, submas[0], size_of_mas);
+      trace_msg(DBG_MSG, "[%s], Client: action - Sort array\n",__FUNCTION__);
+      for(int i = 0; i < k/n; i++) {
+        trace_msg(DBG_MSG, "%d ", submas[0][i]);
+      }
       break;
     default:
       trace_msg(ERR_MSG, "[%s], Server: action - Unknown action \n",__FUNCTION__);
       break;
   }
+
   stop_t = get_time();
   trace_msg(DBG_MSG, "[%s] Time: %d - %d = %d \n",__FUNCTION__, stop_t, start_t, (stop_t - start_t));
   trace_msg(DBG_MSG, "[%s] Time: %d ms\n",__FUNCTION__, (stop_t - start_t) < 0 ? 1000 - start_t + stop_t : stop_t - start_t);
+
+
 }
 
 int main( int argc, char *argv[] ) {
   /* Описываем виджеты GTK */
-  GtkWidget *label_ip;      // Метка (Текст перед полем)
   GtkWidget *label_port;
-  GtkWidget *label_action;
+  GtkWidget *label_action[3];
+  // GtkWidget *label_action_cl_2;
+  // GtkWidget *label_action_cl_3;
   GtkWidget *window;        // Главное окно (может содержать только один виджет!)
   GtkWidget *button_start;  // Инициализация кнопки
   GtkWidget *button_exit;
@@ -268,29 +317,66 @@ int main( int argc, char *argv[] ) {
 
   edit[0] = gtk_entry_new();                                                // создание первого поля ввода
   gtk_widget_set_size_request(edit[0], width_e, height_e);                  // устанавливаем размеры поля ввода
-  label_port = gtk_label_new("Порт сервера");                               // Создаем label
-  gtk_grid_attach(GTK_GRID(grid), label_port, 0, 1, 1, 1);                  // Помещаем label в grid
+  label_port = gtk_label_new("Порт для клиента №1");                        // Создаем label
+  gtk_grid_attach(GTK_GRID(grid), label_port, 0, 0, 1, 1);                  // Помещаем label в grid
 
-  gtk_entry_set_text(GTK_ENTRY(edit[0]), "Введите порт сервера");          // Иницилизация начальной строки в поле ввода(edit[1])
-  gtk_grid_attach(GTK_GRID(grid), edit[0], 2, 1, 1, 1);
+  gtk_entry_set_text(GTK_ENTRY(edit[0]), "Введите порт для клиента №1");     // Иницилизация начальной строки в поле ввода(edit[0])
+  gtk_grid_attach(GTK_GRID(grid), edit[0], 1, 0, 1, 1);
+
+  label_action[0] = gtk_label_new("Действие");                                 // Создаем label
+  gtk_grid_attach(GTK_GRID(grid), label_action[0], 0, 1, 1, 1);                // Помещаем label в grid
+
+  combo[0] = gtk_combo_box_text_new(); // Создаем ComboBox
+  gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo[0]), NULL, "Find Max");
+  gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo[0]), NULL, "Find Min");
+  gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo[0]), NULL, "Sort array");
+
+  gtk_combo_box_set_active(GTK_COMBO_BOX(combo[0]), 0);                        // номер списка по умолчанию
+  gtk_grid_attach(GTK_GRID(grid), combo[0], 1, 1, 1, 1);                       // добавляем ComboBox в окно
+
+  edit[1] = gtk_entry_new();                                                // создание первого поля ввода
+  gtk_widget_set_size_request(edit[1], width_e, height_e);                  // устанавливаем размеры поля ввода
+  label_port = gtk_label_new("Порт для клиента №2");                        // Создаем label
+  gtk_grid_attach(GTK_GRID(grid), label_port, 0, 2, 1, 1);                  // Помещаем label в grid
+
+  gtk_entry_set_text(GTK_ENTRY(edit[1]), "Введите порт для клиента №2");    // Иницилизация начальной строки в поле ввода(edit[1])
+  gtk_grid_attach(GTK_GRID(grid), edit[1], 1, 2, 1, 1);
+
+  label_action[1] = gtk_label_new("Действие");                                 // Создаем label
+  gtk_grid_attach(GTK_GRID(grid), label_action[1], 0, 3, 1, 1);                // Помещаем label в grid
+
+  combo[1] = gtk_combo_box_text_new(); // Создаем ComboBox
+  gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo[1]), NULL, "Find Max");
+  gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo[1]), NULL, "Find Min");
+  gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo[1]), NULL, "Sort array");
+  gtk_combo_box_set_active(GTK_COMBO_BOX(combo[1]), 0); 
+  gtk_grid_attach(GTK_GRID(grid), combo[1], 1, 3, 1, 1);                  // добавляем ComboBox в окно
+
+  edit[2] = gtk_entry_new();                                                // создание первого поля ввода
+  gtk_widget_set_size_request(edit[2], width_e, height_e);                  // устанавливаем размеры поля ввода
+  label_port = gtk_label_new("Порт для клиента №3");                        // Создаем label
+  gtk_grid_attach(GTK_GRID(grid), label_port, 0, 4, 1, 1);                  // Помещаем label в grid
+
+  gtk_entry_set_text(GTK_ENTRY(edit[2]), "Введите порт для клиента №3");     // Иницилизация начальной строки в поле ввода(edit[1])
+  gtk_grid_attach(GTK_GRID(grid), edit[2], 1, 4, 1, 1);
+
+  label_action[3] = gtk_label_new("Действие");            
+  gtk_grid_attach(GTK_GRID(grid), label_action[3], 0, 5, 1, 1);
+
+  combo[3] = gtk_combo_box_text_new(); // Создаем ComboBox
+  gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo[3]), NULL, "Find Max");
+  gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo[3]), NULL, "Find Min");
+  gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo[3]), NULL, "Sort array");
+  gtk_combo_box_set_active(GTK_COMBO_BOX(combo[3]), 0); 
+  gtk_grid_attach(GTK_GRID(grid), combo[3], 1, 5, 1, 1); // добавляем ComboBox в окно
 
   button_start = gtk_button_new_with_label("Запуск");                             // Создаем button
-  gtk_grid_attach(GTK_GRID(grid), button_start, 0, 3, 1, 1);                      // Помещаем button в grid
+  gtk_grid_attach(GTK_GRID(grid), button_start, 0, 6, 1, 1);                      // Помещаем button в grid
   g_signal_connect(GTK_BUTTON(button_start), "clicked", G_CALLBACK(click), NULL); // вызываем функцию click по нажатию button
 
   button_exit = gtk_button_new_with_label("Выход");                                           // создаем button1
   g_signal_connect(GTK_BUTTON(button_exit), "clicked", G_CALLBACK(gtk_main_quit), NULL);      // вызываем функцию gtk_main_quit по нажатию
-  gtk_grid_attach(GTK_GRID(grid), button_exit, 2, 3, 1, 1);                                   // Помещаем button1 в grid
-
-  label_action = gtk_label_new("Действие");                         // Создаем label
-  gtk_grid_attach(GTK_GRID(grid), label_action, 0, 2, 1, 1);        // Помещаем label в grid
-
-  combo = gtk_combo_box_text_new(); // Создаем ComboBox
-  gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo), NULL, "Find Max");
-  gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo), NULL, "Find Min");
-  gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo), NULL, "Sort array");
-  gtk_combo_box_set_active(GTK_COMBO_BOX(combo), 0);  // номер списка по умолчанию
-  gtk_grid_attach(GTK_GRID(grid), combo, 2, 2, 1, 1); // добавляем ComboBox в окно
+  gtk_grid_attach(GTK_GRID(grid), button_exit, 1, 6, 1, 1);                                   // Помещаем button1 в grid
 
   gtk_window_set_position (GTK_WINDOW(window), GTK_WIN_POS_CENTER); // Задает начальную позицию окна при запуске
 

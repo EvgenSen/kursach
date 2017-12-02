@@ -5,9 +5,8 @@ include ../../config.mk
 all: build install
 
 build:
-	@$(CC) $(CFLAGS) client.c -o client `pkg-config --cflags gtk+-3.0` `pkg-config --libs gtk+-3.0` \
+	@$(CC) $(CFLAGS) client.c -o client  \
 	-ltrace -lfunc -L $(DIR_OUT)/lib -I $(DIR_OUT)/include
-
 install:
 	@cp client $(DIR_OUT)/bin
 

@@ -3,10 +3,12 @@
 
 enum action_type
 {
-    FIND_MAX = 0,
+    FIND_MAX,
 	FIND_MIN,
+	SORT
 };
 
-int find_value(int mass[], int count, int action);
+int find_value(int mass[], int size, int action);
+int* sort(int mass[], int size, int action);
 
 #endif //LIB_FUNC_H
