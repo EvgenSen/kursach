@@ -210,7 +210,7 @@ int* recv_mass(int sock, int mass[], int size_of_mas) {
 
 void *client(void *threadArgs) {
 
-  int client_st_t = get_time();
+  
   struct prot_cl *point = (struct prot_cl*)threadArgs;
   int value_min = 0;
   int value_max = 0;
@@ -246,13 +246,10 @@ void *client(void *threadArgs) {
       trace_msg(ERR_MSG, "[%s], Client %d: action - Unknown action \n",__FUNCTION__,point->id);
       break;
   }
-  int client_t_end = get_time();
-  trace_msg(DBG_MSG, "[%s] Time client: %d ms\n",__FUNCTION__, (client_t_end - client_st_t) < 0 ? 1000 - client_st_t + client_t_end : client_t_end - client_st_t);
 }
 
 void *server(void *threadArgs) {
 
-  int server_t_st = get_time();
   struct prot_serv *point = (struct prot_serv*)threadArgs;
   int value_max; 
   int value_min;
@@ -278,10 +275,8 @@ void *server(void *threadArgs) {
       default:
         trace_msg(ERR_MSG, "[%s], Server: action - Unknown action \n",__FUNCTION__);
         break;
-  }  
-}
-  int server_t_end = get_time();
-  trace_msg(DBG_MSG, "[%s] Time server: %d ms\n",__FUNCTION__, (server_t_end - server_t_st) < 0 ? 1000 - server_t_st + server_t_end : server_t_end - server_t_st);
+    }  
+  }
 }
 /* Обрабатываем входные данные и запускаем работу */
 void click(GtkWidget *widget, GtkWidget *entry) {
@@ -334,18 +329,20 @@ void click(GtkWidget *widget, GtkWidget *entry) {
   pthread_t pt_server, clients[N];
 
   // start_t_cl = get_time();
-
+  int client_st_t = get_time();
   for(int i = 0; i < N; i++) {
     pthread_create(&clients[i], NULL, client, &workers[i]);
   }
-
-  pthread_create(&pt_server, NULL, server, &host);
-
   for(int i = 0; i < N; i++) {
     pthread_join(clients[i], NULL);
   }
+  int client_t_end = get_time();
+  trace_msg(DBG_MSG, "[%s] Time client: %d ms\n",__FUNCTION__, (client_t_end - client_st_t) < 0 ? 1000 - client_st_t + client_t_end : client_t_end - client_st_t);
+  int server_t_st = get_time();
+  pthread_create(&pt_server, NULL, server, &host);
   pthread_join(pt_server, NULL);
-
+  int server_t_end = get_time();
+  trace_msg(DBG_MSG, "[%s] Time server: %d ms\n",__FUNCTION__, (server_t_end - server_t_st) < 0 ? 1000 - server_t_st + server_t_end : server_t_end - server_t_st);
   // stop_t_cl = get_time();
   // trace_msg(DBG_MSG, "[%s] Time: %d - %d = %d \n",__FUNCTION__, stop_t, start_t, (stop_t - start_t));
   // trace_msg(DBG_MSG, "[%s] Time: %d ms\n",__FUNCTION__, (stop_t_cl - start_t_cl) < 0 ? 1000 - start_t_cl + stop_t_cl : stop_t_cl - start_t_cl);
