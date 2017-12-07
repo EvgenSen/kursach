@@ -32,16 +32,16 @@ int create_socket(int sock, int port, char *IP) {
     return sock;
 }
 
-int* recv_data(int sock, int* mas, int size_of_mas) {
+int* recv_data(int sock, int* mass, int size) {
 
     int bytesRecv;
 
-    if ((bytesRecv = recv(sock, mas, size_of_mas, 0)) <= 0) {
+    if ((bytesRecv = recv(sock, mass, sizeof(int)*size, 0)) <= 0) {
         trace_msg(ERR_MSG, "[%s], Client: recv_data() failed", __FUNCTION__);
         exit(1);
     }
 
-    return mas;
+    return mass;
 }
 
 int recv_value(int sock, int value) {
@@ -67,9 +67,9 @@ void send_value(int sock, int value) {
     }
 }
 
-void send_mass(int sock, int mass[], int size) {
+void send_mass(int sock, int* mass, int size) {
      if (send(sock, mass, sizeof(int)*size, 0) != sizeof(int)*size) {
-        trace_msg(ERR_MSG, "[%s], Client: send_value() failed", __FUNCTION__);
+        trace_msg(ERR_MSG, "[%s], Client: send_mass() failed", __FUNCTION__);
         exit(1);
     }
     else {
@@ -145,31 +145,44 @@ int main( int argc, char *argv[] ) {
         return 0;
 
     int sock = create_socket(sock, port, servIP);
-
-    int n = recv_value(sock, n);
-    int size_of_mas = sizeof(int) * n;
+    int size_of_mas;
+    size_of_mas = recv_value(sock, size_of_mas);
     int *mass;
-    mass = malloc(size_of_mas);
+    mass = malloc(sizeof(int)*size_of_mas);
     mass = recv_data(sock, mass, size_of_mas);
 
-    for(int i = 0; i < n; i++) {
-        trace_msg(DBG_MSG, "mass[%d] = %d\n", i, mass[i]);
-    }
+    // for(int i = 0; i < size_of_mas; i++) {
+    //     trace_msg(DBG_MSG, "mass[%d] = %d\n", i, mass[i]);
+    // }
     
-    trace_msg(DBG_MSG, "[%s], Client: massage from server accept.\n",__FUNCTION__);
+    // trace_msg(DBG_MSG, "[%s], Client: massage from server accept.\n",__FUNCTION__);
+    int action;
+    int value;
 
-    int action = recv_value(sock, action);
-    trace_msg(DBG_MSG, "[%s], Client: action from server accept.\n",__FUNCTION__);
+    action = recv_value(sock, action);
+    // trace_msg(DBG_MSG, "[%s], Client: action %d from server accept.\n", action,__FUNCTION__);
     
-    if (action == SORT) {
-        mass = sort(mass, n, action);
-        send_mass(sock, mass, n);
-    }
-    else {
-        int value = find_value(mass, n, action);
+    switch (action) { 
+    case 0:
+        // send_value(sock, point->action);
+        value = find_value(mass, size_of_mas, action);
         send_value(sock, value);
+        // trace_msg(DBG_MSG, "[%s], Client: action - find Max value in array (%d) \n",__FUNCTION__, value);
+        break;
+    case 1:
+        value = find_value(mass, size_of_mas, action);
+        send_value(sock, value);
+        // trace_msg(DBG_MSG, "[%s], Client: action - find Min value in array (%d) \n",__FUNCTION__, value);
+        break;
+    case 2:
+        mass = sort(mass, size_of_mas, action);
+        send_mass(sock, mass, size_of_mas);
+        // trace_msg(DBG_MSG, "[%s], Client: action - Sort array\n", __FUNCTION__);
+        break;
+    default:
+        // trace_msg(ERR_MSG, "[%s], Client: action - Unknown action \n",__FUNCTION__);
+        break;
     }
     
     return 0;
-
 }

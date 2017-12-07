@@ -5,17 +5,31 @@
 #include <sys/socket.h> 
 #include <arpa/inet.h> 
 #include <time.h>
-#include <sys/time.h>  
+#include <sys/time.h>
+#include <pthread.h>
   
 #include "lib-trace.h"
 #include "lib-func.h"
 
 #define FILE_NAME "input.txt"
+#define N 3
 
-static GtkWidget *edit[3];    // Массив для полей ввода
-static GtkWidget *combo[3];      // ComboBox для списка
-// static GtkWidget *combo_cl_2;      // ComboBox для списка
-// static GtkWidget *combo_cl_3;      // ComboBox для списка
+static GtkWidget *edit[N];    // Массив для полей ввода
+static GtkWidget *combo[N];      // ComboBox для списка
+
+struct prot_cl {
+  int port_cl;
+  int* mass_proc;
+  int size_of_mass;
+  int action;
+  int id; 
+};
+
+struct prot_serv {
+  int* mass_proc[N];
+  int size_of_mass[N];
+  int action[N];
+};
 
 int get_time ()
 {
@@ -92,11 +106,11 @@ int check_port(int port)
   return 0;
 }
 
-int check_sameport(int port[], int size) {
+int check_sameport(struct prot_cl *check, int size) {
 
   for(int i = 0; i < size - 1; i++) {
-    if(port[i] == port[i+1]) {
-      trace_msg(ERR_MSG, "[%s] Same ports '%d' and  '%d', choise other number of port", __FUNCTION__,port[i],port[i+1]);
+    if(check[i].port_cl == check[i+1].port_cl) {
+      trace_msg(ERR_MSG, "[%s] Same ports '%d' and  '%d', choise other number of port", __FUNCTION__,check[i].port_cl,check[i+1].port_cl);
       return 1;
     }
   }
@@ -144,9 +158,9 @@ int create_socket(int sock, int port_serv) {
   return sock;
 }
 
-void send_data(int sock, int* data, int size_of_data) {
+void send_data(int sock, int *data, int size_of_data) {
 
-  if (send(sock, data, size_of_data, 0) != size_of_data) {
+  if (send(sock, data, sizeof(int)*size_of_data, 0) != sizeof(int)*size_of_data) {
     trace_msg(ERR_MSG, "[%s], Server: send() failed", __FUNCTION__);
     exit(1);
   }
@@ -174,7 +188,7 @@ int recv_value(int sock, int value_cl) {
     trace_msg(ERR_MSG, "[%s], Server: recv_value()) failed", __FUNCTION__);
     exit(1);
   } else {
-    trace_msg(DBG_MSG, "[%s], Server: value has sended.\n",__FUNCTION__);
+    trace_msg(DBG_MSG, "[%s], Server: value has recv.\n",__FUNCTION__);
   }
 
   return value_cl;
@@ -184,113 +198,166 @@ int* recv_mass(int sock, int mass[], int size_of_mas) {
 
   int bytesRecv;
 
-  if ((bytesRecv = recv(sock, mass, size_of_mas, 0)) <= 0) {
-    trace_msg(ERR_MSG, "[%s], Server: recv_value()) failed", __FUNCTION__);
+  if ((bytesRecv = recv(sock, mass, sizeof(int)*size_of_mas, 0)) <= 0) {
+    trace_msg(ERR_MSG, "[%s], Server: recv_mass()) failed", __FUNCTION__);
     exit(1);
   } else {
-    trace_msg(DBG_MSG, "[%s], Server: value has sended.\n",__FUNCTION__);
+    trace_msg(DBG_MSG, "[%s], Server: mas has recv.\n",__FUNCTION__);
   }
 
   return mass;
 }
+
+void *client(void *threadArgs) {
+
+  int client_st_t = get_time();
+  struct prot_cl *point = (struct prot_cl*)threadArgs;
+  int value_min = 0;
+  int value_max = 0;
+  int sock;
+
+  sock = create_socket(sock, point->port_cl);
+  trace_msg(DBG_MSG, "[%s] Port: %d",__FUNCTION__, point->port_cl);
+  send_value(sock, point->size_of_mass);
+  trace_msg(DBG_MSG, "[%s] Size: %d",__FUNCTION__, point->size_of_mass);
+  trace_msg(DBG_MSG, "[%s] Action: %d",__FUNCTION__, point->action);
+  trace_msg(DBG_MSG, "[%s] Id: %d",__FUNCTION__, point->id);
+  send_data(sock, point->mass_proc, point->size_of_mass);
+  trace_msg(DBG_MSG,"[%s] Client %d:\n", __FUNCTION__, point->id);
+  
+  switch (point->action)
+  { 
+    case 0:
+      send_value(sock, point->action);
+      value_max = recv_value(sock, value_max);
+      trace_msg(DBG_MSG, "[%s], Client %d: action - find Max value in array (%d) \n",__FUNCTION__,point->id, value_max);
+      break;
+    case 1:
+      send_value(sock, point->action);
+      value_min = recv_value(sock, value_min);
+      trace_msg(DBG_MSG, "[%s], Client %d: action - find Min value in array (%d) \n",__FUNCTION__,point->id, value_min);
+      break;
+    case 2:
+      send_value(sock, point->action);
+      point->mass_proc = recv_mass(sock, point->mass_proc, point->size_of_mass);
+      trace_msg(DBG_MSG, "[%s], Client %d: action - Sort array\n", __FUNCTION__,point->id);
+      break;
+    default:
+      trace_msg(ERR_MSG, "[%s], Client %d: action - Unknown action \n",__FUNCTION__,point->id);
+      break;
+  }
+  int client_t_end = get_time();
+  trace_msg(DBG_MSG, "[%s] Time client: %d ms\n",__FUNCTION__, (client_t_end - client_st_t) < 0 ? 1000 - client_st_t + client_t_end : client_t_end - client_st_t);
+}
+
+void *server(void *threadArgs) {
+
+  int server_t_st = get_time();
+  struct prot_serv *point = (struct prot_serv*)threadArgs;
+  int value_max; 
+  int value_min;
+  
+  for(int i = 0; i < N; i++) {
+    trace_msg(DBG_MSG, "[%s] Size: %d",__FUNCTION__, point->size_of_mass[i]);
+    trace_msg(DBG_MSG, "[%s] Action: %d",__FUNCTION__, point->action[i]);
+
+    switch (point->action[i])
+    {
+      case 0:
+        value_max = find_value(point->mass_proc[i], point->size_of_mass[i], point->action[i]);
+        trace_msg(DBG_MSG, "[%s], Server: action - find Max value in array (%d) \n",__FUNCTION__, value_max);
+        break;
+      case 1:
+        value_min = find_value(point->mass_proc[i], point->size_of_mass[i], point->action[i]);
+        trace_msg(DBG_MSG, "[%s], Server: action - find Min value in array (%d) \n",__FUNCTION__, value_min);
+        break;
+      case 2:
+        point->mass_proc[i] = sort(point->mass_proc[i], point->size_of_mass[i], point->action[i]);
+        trace_msg(DBG_MSG, "[%s], Server: action - Sort array\n", __FUNCTION__);
+        break;
+      default:
+        trace_msg(ERR_MSG, "[%s], Server: action - Unknown action \n",__FUNCTION__);
+        break;
+  }  
+}
+  int server_t_end = get_time();
+  trace_msg(DBG_MSG, "[%s] Time server: %d ms\n",__FUNCTION__, (server_t_end - server_t_st) < 0 ? 1000 - server_t_st + server_t_end : server_t_end - server_t_st);
+}
 /* Обрабатываем входные данные и запускаем работу */
 void click(GtkWidget *widget, GtkWidget *entry) {
 
-  int n = 3;  
-  int PORT[n];
+  struct prot_cl workers[N];
+  struct prot_serv host;  
+  // int PORT[n];
 
-  for(int i = 0; i < n; i++) {
-    PORT[i] = atoi((gchar*)gtk_entry_get_text(GTK_ENTRY(edit[i])));
+  for(int i = 0; i < N; i++) {
+    workers[i].port_cl = atoi((gchar*)gtk_entry_get_text(GTK_ENTRY(edit[i])));
+    workers[i].action = gtk_combo_box_get_active(GTK_COMBO_BOX(combo[i]));
+    workers[i].id = i;
+    host.action[i] = workers[i].action;
   }
 
-  for(int i = 0; i < n; i++) {
-    if (check_port(PORT[i]))
-        return 0;
+  for(int i = 0; i < N; i++) {
+    if (check_port(workers[i].port_cl))
+      return;
   }
 
-  if (check_sameport(PORT, n))
-    return 0;
+  if (check_sameport(workers, N))
+    return;
 
-  int start_t, stop_t;
-  int * mass = NULL;
+  int start_t_cl, stop_t_cl;
+  int *mass = NULL;
   int value_s;
   int value_cl;
-  start_t = get_time();
+  
   int k = read_array_from_file(&mass);
 
   /*Start Share mass */
+  int i = 0;
 
-  int **submas;                                             
-  submas = malloc(sizeof(int*)*n);
-
-  for(int j = 0; j < n; j++) {
-    int i = 0;
-    submas[j] = malloc(sizeof(int)*(k/n));
-    for(int l = 0; l < k/n; l++) {
-      submas[j][l] = mass[i];
+  for(int j = 0; j < N; j++) {
+    workers[j].mass_proc = malloc(sizeof(int)*(k/N));
+    for(int l = 0; l < k/N; l++) {
+      workers[j].mass_proc[l] = mass[i];
+      workers[j].size_of_mass = (k/N);
       i++;
     }
   }
 
-  /*End Share mass */
-  trace_msg(DBG_MSG, "[%s] Port:        %d\n",__FUNCTION__, PORT[0]);
+  for(int i = 0; i < N; i++) {
+    host.mass_proc[i] = malloc(sizeof(int)*(k/N));
+    host.mass_proc[i] = workers[i].mass_proc;
+    host.size_of_mass[i] =  workers[i].size_of_mass;
+  }
+  
+  /*Start thread */
+  pthread_t pt_server, clients[N];
 
-  int sock;
-  int size_of_mas = sizeof(int)*(k/n);
+  // start_t_cl = get_time();
 
-  sock = create_socket(sock, PORT[0]);
-  send_value(sock, k/n);
-  send_data(sock, submas[0], size_of_mas);
-
-
-  switch(gtk_combo_box_get_active(GTK_COMBO_BOX(combo[0])))
-  {
-    case 0:
-      send_value(sock, FIND_MAX);
-      value_s = find_value(submas[0], k/n , FIND_MAX);
-      trace_msg(DBG_MSG, "[%s], Server: action - find Max value in array (%d) \n",__FUNCTION__, value_s);
-      value_cl = recv_value(sock, value_cl);
-      trace_msg(DBG_MSG, "[%s], Client: action - find Max value in array (%d) \n",__FUNCTION__, value_cl);
-      break;
-    case 1:
-      send_value(sock, FIND_MIN);
-      value_s = find_value(submas[0], k/n, FIND_MIN);
-      trace_msg(DBG_MSG, "[%s], Server: action - find Min value in array (%d)\n",__FUNCTION__, value_s);
-      value_cl = recv_value(sock, value_cl);
-      trace_msg(DBG_MSG, "[%s], Client: action - find Min value in array (%d) \n",__FUNCTION__, value_cl);
-      break;
-    case 2:
-      send_value(sock, SORT);
-      submas[0] = sort(submas[0], k/n, SORT);
-      trace_msg(DBG_MSG, "[%s], Server: action - Sort array\n",__FUNCTION__);
-      for(int i = 0; i < k/n; i++) {
-        trace_msg(DBG_MSG, "%d ", submas[0][i]);
-      }
-      send_value(sock, SORT);
-      submas[0] = recv_mass(sock, submas[0], size_of_mas);
-      trace_msg(DBG_MSG, "[%s], Client: action - Sort array\n",__FUNCTION__);
-      for(int i = 0; i < k/n; i++) {
-        trace_msg(DBG_MSG, "%d ", submas[0][i]);
-      }
-      break;
-    default:
-      trace_msg(ERR_MSG, "[%s], Server: action - Unknown action \n",__FUNCTION__);
-      break;
+  for(int i = 0; i < N; i++) {
+    pthread_create(&clients[i], NULL, client, &workers[i]);
   }
 
-  stop_t = get_time();
-  trace_msg(DBG_MSG, "[%s] Time: %d - %d = %d \n",__FUNCTION__, stop_t, start_t, (stop_t - start_t));
-  trace_msg(DBG_MSG, "[%s] Time: %d ms\n",__FUNCTION__, (stop_t - start_t) < 0 ? 1000 - start_t + stop_t : stop_t - start_t);
+  pthread_create(&pt_server, NULL, server, &host);
 
+  for(int i = 0; i < N; i++) {
+    pthread_join(clients[i], NULL);
+  }
+  pthread_join(pt_server, NULL);
 
+  // stop_t_cl = get_time();
+  // trace_msg(DBG_MSG, "[%s] Time: %d - %d = %d \n",__FUNCTION__, stop_t, start_t, (stop_t - start_t));
+  // trace_msg(DBG_MSG, "[%s] Time: %d ms\n",__FUNCTION__, (stop_t_cl - start_t_cl) < 0 ? 1000 - start_t_cl + stop_t_cl : stop_t_cl - start_t_cl);
+
+  /* end tread */
+  exit(1);
 }
 
 int main( int argc, char *argv[] ) {
   /* Описываем виджеты GTK */
   GtkWidget *label_port;
-  GtkWidget *label_action[3];
-  // GtkWidget *label_action_cl_2;
-  // GtkWidget *label_action_cl_3;
+  GtkWidget *label_action[N];
   GtkWidget *window;        // Главное окно (может содержать только один виджет!)
   GtkWidget *button_start;  // Инициализация кнопки
   GtkWidget *button_exit;
@@ -360,15 +427,15 @@ int main( int argc, char *argv[] ) {
   gtk_entry_set_text(GTK_ENTRY(edit[2]), "Введите порт для клиента №3");     // Иницилизация начальной строки в поле ввода(edit[1])
   gtk_grid_attach(GTK_GRID(grid), edit[2], 1, 4, 1, 1);
 
-  label_action[3] = gtk_label_new("Действие");            
-  gtk_grid_attach(GTK_GRID(grid), label_action[3], 0, 5, 1, 1);
+  label_action[2] = gtk_label_new("Действие");            
+  gtk_grid_attach(GTK_GRID(grid), label_action[2], 0, 5, 1, 1);
 
-  combo[3] = gtk_combo_box_text_new(); // Создаем ComboBox
-  gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo[3]), NULL, "Find Max");
-  gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo[3]), NULL, "Find Min");
-  gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo[3]), NULL, "Sort array");
-  gtk_combo_box_set_active(GTK_COMBO_BOX(combo[3]), 0); 
-  gtk_grid_attach(GTK_GRID(grid), combo[3], 1, 5, 1, 1); // добавляем ComboBox в окно
+  combo[2] = gtk_combo_box_text_new(); // Создаем ComboBox
+  gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo[2]), NULL, "Find Max");
+  gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo[2]), NULL, "Find Min");
+  gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo[2]), NULL, "Sort array");
+  gtk_combo_box_set_active(GTK_COMBO_BOX(combo[2]), 0); 
+  gtk_grid_attach(GTK_GRID(grid), combo[2], 1, 5, 1, 1); // добавляем ComboBox в окно
 
   button_start = gtk_button_new_with_label("Запуск");                             // Создаем button
   gtk_grid_attach(GTK_GRID(grid), button_start, 0, 6, 1, 1);                      // Помещаем button в grid
