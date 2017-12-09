@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include <gtk/gtk.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -16,6 +18,8 @@
 
 static GtkWidget *edit[N];    // Массив для полей ввода
 static GtkWidget *combo[N];      // ComboBox для списка
+
+unsigned flag = 0; /* блокируем повторный запуск сервера */
 
 struct prot_cl {
   int port_cl;
@@ -291,6 +295,12 @@ void *server(void *threadArgs) {
 /* Обрабатываем входные данные и запускаем работу */
 void click(GtkWidget *widget, GtkWidget *entry) {
 
+  if (flag) {
+    trace_msg(ERR_MSG, "[%s], Server is already running \n",__FUNCTION__);
+    return;
+  }
+  flag = 1;
+
   struct prot_cl workers[N];
   struct prot_serv host;  
   // int PORT[n];
@@ -341,9 +351,9 @@ void click(GtkWidget *widget, GtkWidget *entry) {
     pthread_create(&clients[i], NULL, client, &workers[i]);
   }
   pthread_create(&pt_server, NULL, server, &host);
-
   /* end tread */
   gtk_main();
+  trace_msg(DBG_MSG, "[%s], Server stopped \n",__FUNCTION__);
 }
 
 int main( int argc, char *argv[] ) {

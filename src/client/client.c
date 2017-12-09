@@ -4,6 +4,7 @@
 #include <stdlib.h>     
 #include <string.h>     
 #include <time.h>
+#include <unistd.h>
 
 #include "lib-trace.h"
 #include "lib-func.h"
@@ -151,11 +152,12 @@ int main( int argc, char *argv[] ) {
     mass = malloc(sizeof(int)*size_of_mas);
     mass = recv_data(sock, mass, size_of_mas);
 
+/* Очень много сообщений в консоль
     for(int i = 0; i < size_of_mas; i++) {
         trace_msg(DBG_MSG, "mass[%d] = %d\n", i, mass[i]);
     }
-    
-    trace_msg(DBG_MSG, "[%s], Client: massage from server accept.\n",__FUNCTION__);
+*/
+    trace_msg(DBG_MSG, "[%s], Client: message from server accept.\n",__FUNCTION__);
     int action;
     int value;
 
