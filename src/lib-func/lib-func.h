@@ -8,7 +8,7 @@ enum action_type
 	SORT
 };
 
-int find_value(int mass[], int size, int action);
-int* sort(int mass[], int size, int action);
+int find_value(int *mass, int size, int action);
+int* sort(int *mass, int size, int action);
 
 #endif //LIB_FUNC_H

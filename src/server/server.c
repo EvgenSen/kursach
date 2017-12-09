@@ -19,16 +19,16 @@ static GtkWidget *combo[N];      // ComboBox для списка
 
 struct prot_cl {
   int port_cl;
-  int* mass_proc;
-  int size_of_mass;
-  int action;
+  int* mass_proc_cl;
+  int size_of_mass_cl;
+  int action_cl;
   int id; 
 };
 
 struct prot_serv {
-  int* mass_proc[N];
-  int size_of_mass[N];
-  int action[N];
+  int** mass_proc_s;
+  int size_of_mass_s[N];
+  int action_s[N];
 };
 
 int get_time ()
@@ -119,6 +119,7 @@ int check_sameport(struct prot_cl *check, int size) {
 
 int create_socket(int sock, int port_serv) {
 
+
   if ((sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0){
     trace_msg(ERR_MSG, "[%s], Server: socket() failed", __FUNCTION__);
     exit(1);
@@ -154,7 +155,6 @@ int create_socket(int sock, int port_serv) {
     trace_msg(ERR_MSG, "[%s], Server: accept() failed", __FUNCTION__);
     exit(1);
   }
-
   return sock;
 }
 
@@ -190,11 +190,10 @@ int recv_value(int sock, int value_cl) {
   } else {
     trace_msg(DBG_MSG, "[%s], Server: value has recv.\n",__FUNCTION__);
   }
-
   return value_cl;
 }
 
-int* recv_mass(int sock, int mass[], int size_of_mas) {
+int* recv_mass(int sock, int* mass, int size_of_mas) {
 
   int bytesRecv;
 
@@ -204,72 +203,79 @@ int* recv_mass(int sock, int mass[], int size_of_mas) {
   } else {
     trace_msg(DBG_MSG, "[%s], Server: mas has recv.\n",__FUNCTION__);
   }
-
+  
   return mass;
 }
 
 void *client(void *threadArgs) {
 
-  
+
+  int client_st_t = get_time();
   struct prot_cl *point = (struct prot_cl*)threadArgs;
   int value_min = 0;
   int value_max = 0;
+  
   int sock;
-
+  
   sock = create_socket(sock, point->port_cl);
   trace_msg(DBG_MSG, "[%s] Port: %d",__FUNCTION__, point->port_cl);
-  send_value(sock, point->size_of_mass);
-  trace_msg(DBG_MSG, "[%s] Size: %d",__FUNCTION__, point->size_of_mass);
-  trace_msg(DBG_MSG, "[%s] Action: %d",__FUNCTION__, point->action);
+  send_value(sock, point->size_of_mass_cl);
+  trace_msg(DBG_MSG, "[%s] Size: %d",__FUNCTION__, point->size_of_mass_cl);
+  trace_msg(DBG_MSG, "[%s] Action: %d",__FUNCTION__, point->action_cl);
   trace_msg(DBG_MSG, "[%s] Id: %d",__FUNCTION__, point->id);
-  send_data(sock, point->mass_proc, point->size_of_mass);
+  send_data(sock, point->mass_proc_cl, point->size_of_mass_cl);
   trace_msg(DBG_MSG,"[%s] Client %d:\n", __FUNCTION__, point->id);
   
-  switch (point->action)
+  switch (point->action_cl)
   { 
     case 0:
-      send_value(sock, point->action);
+      send_value(sock, point->action_cl);
       value_max = recv_value(sock, value_max);
       trace_msg(DBG_MSG, "[%s], Client %d: action - find Max value in array (%d) \n",__FUNCTION__,point->id, value_max);
       break;
     case 1:
-      send_value(sock, point->action);
+      send_value(sock, point->action_cl);
       value_min = recv_value(sock, value_min);
       trace_msg(DBG_MSG, "[%s], Client %d: action - find Min value in array (%d) \n",__FUNCTION__,point->id, value_min);
       break;
     case 2:
-      send_value(sock, point->action);
-      point->mass_proc = recv_mass(sock, point->mass_proc, point->size_of_mass);
+      send_value(sock, point->action_cl);
+      point->mass_proc_cl = recv_mass(sock, point->mass_proc_cl, point->size_of_mass_cl);
       trace_msg(DBG_MSG, "[%s], Client %d: action - Sort array\n", __FUNCTION__,point->id);
       break;
     default:
       trace_msg(ERR_MSG, "[%s], Client %d: action - Unknown action \n",__FUNCTION__,point->id);
       break;
   }
+  close(sock);
+  int client_t_end = get_time();
+  trace_msg(DBG_MSG, "[%s] Time client: %d(ns)\n",__FUNCTION__,client_t_end - client_st_t < 0 ? 1000 - client_st_t + client_t_end : client_t_end - client_st_t);
+  sleep(1);
 }
 
 void *server(void *threadArgs) {
 
+  int server_t_st = get_time();
   struct prot_serv *point = (struct prot_serv*)threadArgs;
   int value_max; 
   int value_min;
   
   for(int i = 0; i < N; i++) {
-    trace_msg(DBG_MSG, "[%s] Size: %d",__FUNCTION__, point->size_of_mass[i]);
-    trace_msg(DBG_MSG, "[%s] Action: %d",__FUNCTION__, point->action[i]);
+    trace_msg(DBG_MSG, "[%s] Size: %d",__FUNCTION__, point->size_of_mass_s[i]);
+    trace_msg(DBG_MSG, "[%s] Action: %d",__FUNCTION__, point->action_s[i]);
 
-    switch (point->action[i])
+    switch (point->action_s[i])
     {
       case 0:
-        value_max = find_value(point->mass_proc[i], point->size_of_mass[i], point->action[i]);
+        value_max = find_value(point->mass_proc_s[i], point->size_of_mass_s[i], point->action_s[i]);
         trace_msg(DBG_MSG, "[%s], Server: action - find Max value in array (%d) \n",__FUNCTION__, value_max);
         break;
       case 1:
-        value_min = find_value(point->mass_proc[i], point->size_of_mass[i], point->action[i]);
+        value_min = find_value(point->mass_proc_s[i], point->size_of_mass_s[i], point->action_s[i]);
         trace_msg(DBG_MSG, "[%s], Server: action - find Min value in array (%d) \n",__FUNCTION__, value_min);
         break;
       case 2:
-        point->mass_proc[i] = sort(point->mass_proc[i], point->size_of_mass[i], point->action[i]);
+        point->mass_proc_s[i] = sort(point->mass_proc_s[i], point->size_of_mass_s[i], point->action_s[i]);
         trace_msg(DBG_MSG, "[%s], Server: action - Sort array\n", __FUNCTION__);
         break;
       default:
@@ -277,6 +283,10 @@ void *server(void *threadArgs) {
         break;
     }  
   }
+
+  int server_t_end = get_time();
+  trace_msg(DBG_MSG, "[%s] Time server: %d(ns)\n",__FUNCTION__, server_t_end - server_t_st < 0 ? 1000 - server_t_st + server_t_end : server_t_end - server_t_st);
+  
 }
 /* Обрабатываем входные данные и запускаем работу */
 void click(GtkWidget *widget, GtkWidget *entry) {
@@ -287,9 +297,9 @@ void click(GtkWidget *widget, GtkWidget *entry) {
 
   for(int i = 0; i < N; i++) {
     workers[i].port_cl = atoi((gchar*)gtk_entry_get_text(GTK_ENTRY(edit[i])));
-    workers[i].action = gtk_combo_box_get_active(GTK_COMBO_BOX(combo[i]));
+    workers[i].action_cl = gtk_combo_box_get_active(GTK_COMBO_BOX(combo[i]));
     workers[i].id = i;
-    host.action[i] = workers[i].action;
+    host.action_s[i] = workers[i].action_cl;
   }
 
   for(int i = 0; i < N; i++) {
@@ -310,45 +320,30 @@ void click(GtkWidget *widget, GtkWidget *entry) {
   /*Start Share mass */
   int i = 0;
 
+  host.mass_proc_s = malloc(sizeof(int*)*N);
+
   for(int j = 0; j < N; j++) {
-    workers[j].mass_proc = malloc(sizeof(int)*(k/N));
+    workers[j].mass_proc_cl = malloc(sizeof(int)*(k/N));
+    host.mass_proc_s[j] = malloc(sizeof(int)*(k/N));
+    workers[j].size_of_mass_cl = (k/N);
+    host.size_of_mass_s[j] = workers[j].size_of_mass_cl;
     for(int l = 0; l < k/N; l++) {
-      workers[j].mass_proc[l] = mass[i];
-      workers[j].size_of_mass = (k/N);
+      workers[j].mass_proc_cl[l] = mass[i];
+      host.mass_proc_s[j][l] = mass[i];  
       i++;
     }
-  }
-
-  for(int i = 0; i < N; i++) {
-    host.mass_proc[i] = malloc(sizeof(int)*(k/N));
-    host.mass_proc[i] = workers[i].mass_proc;
-    host.size_of_mass[i] =  workers[i].size_of_mass;
   }
   
   /*Start thread */
   pthread_t pt_server, clients[N];
 
-  // start_t_cl = get_time();
-  int client_st_t = get_time();
   for(int i = 0; i < N; i++) {
     pthread_create(&clients[i], NULL, client, &workers[i]);
   }
-  for(int i = 0; i < N; i++) {
-    pthread_join(clients[i], NULL);
-  }
-  int client_t_end = get_time();
-  trace_msg(DBG_MSG, "[%s] Time client: %d ms\n",__FUNCTION__, (client_t_end - client_st_t) < 0 ? 1000 - client_st_t + client_t_end : client_t_end - client_st_t);
-  int server_t_st = get_time();
   pthread_create(&pt_server, NULL, server, &host);
-  pthread_join(pt_server, NULL);
-  int server_t_end = get_time();
-  trace_msg(DBG_MSG, "[%s] Time server: %d ms\n",__FUNCTION__, (server_t_end - server_t_st) < 0 ? 1000 - server_t_st + server_t_end : server_t_end - server_t_st);
-  // stop_t_cl = get_time();
-  // trace_msg(DBG_MSG, "[%s] Time: %d - %d = %d \n",__FUNCTION__, stop_t, start_t, (stop_t - start_t));
-  // trace_msg(DBG_MSG, "[%s] Time: %d ms\n",__FUNCTION__, (stop_t_cl - start_t_cl) < 0 ? 1000 - start_t_cl + stop_t_cl : stop_t_cl - start_t_cl);
 
   /* end tread */
-  exit(1);
+  gtk_main();
 }
 
 int main( int argc, char *argv[] ) {

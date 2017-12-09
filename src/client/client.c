@@ -151,38 +151,39 @@ int main( int argc, char *argv[] ) {
     mass = malloc(sizeof(int)*size_of_mas);
     mass = recv_data(sock, mass, size_of_mas);
 
-    // for(int i = 0; i < size_of_mas; i++) {
-    //     trace_msg(DBG_MSG, "mass[%d] = %d\n", i, mass[i]);
-    // }
+    for(int i = 0; i < size_of_mas; i++) {
+        trace_msg(DBG_MSG, "mass[%d] = %d\n", i, mass[i]);
+    }
     
-    // trace_msg(DBG_MSG, "[%s], Client: massage from server accept.\n",__FUNCTION__);
+    trace_msg(DBG_MSG, "[%s], Client: massage from server accept.\n",__FUNCTION__);
     int action;
     int value;
 
     action = recv_value(sock, action);
-    // trace_msg(DBG_MSG, "[%s], Client: action %d from server accept.\n", action,__FUNCTION__);
+    trace_msg(DBG_MSG, "[%s], Client: action %d from server accept.\n", __FUNCTION__,action);
     
     switch (action) { 
     case 0:
         // send_value(sock, point->action);
         value = find_value(mass, size_of_mas, action);
         send_value(sock, value);
-        // trace_msg(DBG_MSG, "[%s], Client: action - find Max value in array (%d) \n",__FUNCTION__, value);
+        trace_msg(DBG_MSG, "[%s], Client: action - find Max value in array (%d) \n",__FUNCTION__, value);
         break;
     case 1:
         value = find_value(mass, size_of_mas, action);
         send_value(sock, value);
-        // trace_msg(DBG_MSG, "[%s], Client: action - find Min value in array (%d) \n",__FUNCTION__, value);
+        trace_msg(DBG_MSG, "[%s], Client: action - find Min value in array (%d) \n",__FUNCTION__, value);
         break;
     case 2:
         mass = sort(mass, size_of_mas, action);
         send_mass(sock, mass, size_of_mas);
-        // trace_msg(DBG_MSG, "[%s], Client: action - Sort array\n", __FUNCTION__);
+        trace_msg(DBG_MSG, "[%s], Client: action - Sort array\n", __FUNCTION__);
         break;
     default:
-        // trace_msg(ERR_MSG, "[%s], Client: action - Unknown action \n",__FUNCTION__);
+        trace_msg(ERR_MSG, "[%s], Client: action - Unknown action \n",__FUNCTION__);
         break;
     }
-    
+    close(sock);
+    free(mass);
     return 0;
 }

@@ -4,7 +4,7 @@
 
 #include "lib-func.h"
 
-int find_value(int mass[], int size, int action)
+int find_value(int *mass, int size, int action)
 {
   int i = 0;
   int max = mass[0];
@@ -22,7 +22,7 @@ int find_value(int mass[], int size, int action)
     return min;
 }
 
-int* sort(int mass[], int size, int action) {
+int* sort(int *mass, int size, int action) {
 
   if(action == 2) {
     int lim_n;
