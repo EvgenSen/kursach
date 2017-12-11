@@ -35,11 +35,21 @@ struct prot_serv {
   int action_s[N];
 };
 
+/* Возвращает милисекунды */
 int get_time ()
 {
   struct timeval tv;
   gettimeofday(&tv, 0);
   return (int)tv.tv_usec / 1000;
+}
+
+void print_time_diff (struct timeval tv_start, struct timeval tv_end, char * app)
+{
+  int ms = (int)(tv_end.tv_usec - tv_start.tv_usec) / 1000;
+  int s  = (int)(tv_end.tv_sec - tv_start.tv_sec);
+  if (ms < 0)
+    ms = 1 - ms;
+  trace_msg(DBG_MSG, "[%s] Time work of %s: %d ms \n",__FUNCTION__, app, s * 1000 + ms);
 }
 
 int read_array_from_file(int ** mass)
@@ -125,7 +135,7 @@ int create_socket(int sock, int port_serv) {
 
 
   if ((sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0){
-    trace_msg(ERR_MSG, "[%s], Server: socket() failed", __FUNCTION__);
+    trace_msg(ERR_MSG, "[%s] Server: socket() failed", __FUNCTION__);
     exit(1);
   }
 
@@ -139,12 +149,12 @@ int create_socket(int sock, int port_serv) {
 
   /* Bind to the local address */
   if (bind(sock, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr)) < 0) {
-    trace_msg(ERR_MSG, "[%s], Server: bind() failed", __FUNCTION__);
+    trace_msg(ERR_MSG, "[%s] Server: bind() failed", __FUNCTION__);
     exit(1);
   }
 
   if (listen(sock, 5) < 0) {
-    trace_msg(ERR_MSG, "[%s], Server: listen() failed", __FUNCTION__);
+    trace_msg(ERR_MSG, "[%s] Server: listen() failed", __FUNCTION__);
     exit(1);
   }
 
@@ -156,7 +166,7 @@ int create_socket(int sock, int port_serv) {
 
   /* Mark the socket so it will listen for incoming connections */
   if ((sock = accept(sock, (struct sockaddr *) &echoClntAddr, &clntLen)) < 0) {
-    trace_msg(ERR_MSG, "[%s], Server: accept() failed", __FUNCTION__);
+    trace_msg(ERR_MSG, "[%s] Server: accept() failed", __FUNCTION__);
     exit(1);
   }
   return sock;
@@ -165,22 +175,22 @@ int create_socket(int sock, int port_serv) {
 void send_data(int sock, int *data, int size_of_data) {
 
   if (send(sock, data, sizeof(int)*size_of_data, 0) != sizeof(int)*size_of_data) {
-    trace_msg(ERR_MSG, "[%s], Server: send() failed", __FUNCTION__);
+    trace_msg(ERR_MSG, "[%s] Server: send() failed", __FUNCTION__);
     exit(1);
   }
   else {
-    trace_msg(DBG_MSG, "[%s], Server: massive has sended.\n",__FUNCTION__);
+    trace_msg(DBG_MSG, "[%s] Server: massive has sended.\n",__FUNCTION__);
   }
 }
 
 void send_value(int sock, int value) {
 
   if (send(sock, &value, sizeof(int), 0) != sizeof(int)) {
-    trace_msg(ERR_MSG, "[%s], Server: send() failed", __FUNCTION__);
+    trace_msg(ERR_MSG, "[%s] Server: send() failed", __FUNCTION__);
     exit(1);
   }
   else {
-    trace_msg(DBG_MSG, "[%s], Server: value has sended.\n",__FUNCTION__);
+    trace_msg(DBG_MSG, "[%s] Server: value has sended.\n",__FUNCTION__);
   }
 }
 
@@ -189,10 +199,10 @@ int recv_value(int sock, int value_cl) {
   int bytesRecv;
 
   if ((bytesRecv = recv(sock, &value_cl, sizeof(int), 0)) <= 0) {
-    trace_msg(ERR_MSG, "[%s], Server: recv_value()) failed", __FUNCTION__);
+    trace_msg(ERR_MSG, "[%s] Server: recv_value()) failed", __FUNCTION__);
     exit(1);
   } else {
-    trace_msg(DBG_MSG, "[%s], Server: value has recv.\n",__FUNCTION__);
+    trace_msg(DBG_MSG, "[%s] Server: value has recv.\n",__FUNCTION__);
   }
   return value_cl;
 }
@@ -202,22 +212,22 @@ int* recv_mass(int sock, int* mass, int size_of_mas) {
   int bytesRecv;
 
   if ((bytesRecv = recv(sock, mass, sizeof(int)*size_of_mas, 0)) <= 0) {
-    trace_msg(ERR_MSG, "[%s], Server: recv_mass()) failed", __FUNCTION__);
+    trace_msg(ERR_MSG, "[%s] Server: recv_mass()) failed", __FUNCTION__);
     exit(1);
   } else {
-    trace_msg(DBG_MSG, "[%s], Server: mas has recv.\n",__FUNCTION__);
+    trace_msg(DBG_MSG, "[%s] Server: mas has recv.\n",__FUNCTION__);
   }
   
   return mass;
 }
 
-void *client(void *threadArgs) {
-
-
-  int client_st_t = get_time();
+void *client(void *threadArgs)
+{
   struct prot_cl *point = (struct prot_cl*)threadArgs;
   int value_min = 0;
   int value_max = 0;
+  struct timeval start_time, end_time;
+  gettimeofday(&start_time, 0);
   
   int sock;
   
@@ -235,35 +245,35 @@ void *client(void *threadArgs) {
     case 0:
       send_value(sock, point->action_cl);
       value_max = recv_value(sock, value_max);
-      trace_msg(DBG_MSG, "[%s], Client %d: action - find Max value in array (%d) \n",__FUNCTION__,point->id, value_max);
+      trace_msg(DBG_MSG, "[%s] Client %d: action - find Max value in array (%d) \n",__FUNCTION__,point->id, value_max);
       break;
     case 1:
       send_value(sock, point->action_cl);
       value_min = recv_value(sock, value_min);
-      trace_msg(DBG_MSG, "[%s], Client %d: action - find Min value in array (%d) \n",__FUNCTION__,point->id, value_min);
+      trace_msg(DBG_MSG, "[%s] Client %d: action - find Min value in array (%d) \n",__FUNCTION__,point->id, value_min);
       break;
     case 2:
       send_value(sock, point->action_cl);
       point->mass_proc_cl = recv_mass(sock, point->mass_proc_cl, point->size_of_mass_cl);
-      trace_msg(DBG_MSG, "[%s], Client %d: action - Sort array\n", __FUNCTION__,point->id);
+      trace_msg(DBG_MSG, "[%s] Client %d: action - Sort array\n", __FUNCTION__,point->id);
       break;
     default:
-      trace_msg(ERR_MSG, "[%s], Client %d: action - Unknown action \n",__FUNCTION__,point->id);
+      trace_msg(ERR_MSG, "[%s] Client %d: action - Unknown action \n",__FUNCTION__,point->id);
       break;
   }
   close(sock);
-  int client_t_end = get_time();
-  trace_msg(DBG_MSG, "[%s] Time client: %d(ns)\n",__FUNCTION__,client_t_end - client_st_t < 0 ? 1000 - client_st_t + client_t_end : client_t_end - client_st_t);
-  sleep(1);
+  gettimeofday(&end_time, 0);
+  print_time_diff(start_time,end_time,"Client");
 }
 
 void *server(void *threadArgs) {
 
-  int server_t_st = get_time();
   struct prot_serv *point = (struct prot_serv*)threadArgs;
   int value_max; 
   int value_min;
-  
+  struct timeval start_time, end_time;
+  gettimeofday(&start_time, 0);
+
   for(int i = 0; i < N; i++) {
     trace_msg(DBG_MSG, "[%s] Size: %d",__FUNCTION__, point->size_of_mass_s[i]);
     trace_msg(DBG_MSG, "[%s] Action: %d",__FUNCTION__, point->action_s[i]);
@@ -272,31 +282,30 @@ void *server(void *threadArgs) {
     {
       case 0:
         value_max = find_value(point->mass_proc_s[i], point->size_of_mass_s[i], point->action_s[i]);
-        trace_msg(DBG_MSG, "[%s], Server: action - find Max value in array (%d) \n",__FUNCTION__, value_max);
+        trace_msg(DBG_MSG, "[%s] Server: action - find Max value in array (%d) \n",__FUNCTION__, value_max);
         break;
       case 1:
         value_min = find_value(point->mass_proc_s[i], point->size_of_mass_s[i], point->action_s[i]);
-        trace_msg(DBG_MSG, "[%s], Server: action - find Min value in array (%d) \n",__FUNCTION__, value_min);
+        trace_msg(DBG_MSG, "[%s] Server: action - find Min value in array (%d) \n",__FUNCTION__, value_min);
         break;
-      case 2:
+      case 2:       
         point->mass_proc_s[i] = sort(point->mass_proc_s[i], point->size_of_mass_s[i], point->action_s[i]);
-        trace_msg(DBG_MSG, "[%s], Server: action - Sort array\n", __FUNCTION__);
+        trace_msg(DBG_MSG, "[%s] Server: action - Sort array\n", __FUNCTION__);
         break;
       default:
-        trace_msg(ERR_MSG, "[%s], Server: action - Unknown action \n",__FUNCTION__);
+        trace_msg(ERR_MSG, "[%s] Server: action - Unknown action \n",__FUNCTION__);
         break;
     }  
   }
-
-  int server_t_end = get_time();
-  trace_msg(DBG_MSG, "[%s] Time server: %d(ns)\n",__FUNCTION__, server_t_end - server_t_st < 0 ? 1000 - server_t_st + server_t_end : server_t_end - server_t_st);
-  
+  gettimeofday(&end_time, 0);
+  print_time_diff(start_time,end_time,"Server");
 }
+
 /* Обрабатываем входные данные и запускаем работу */
 void click(GtkWidget *widget, GtkWidget *entry) {
 
   if (flag) {
-    trace_msg(ERR_MSG, "[%s], Server is already running \n",__FUNCTION__);
+    trace_msg(ERR_MSG, "[%s] Server is already running \n",__FUNCTION__);
     return;
   }
   flag = 1;
@@ -353,7 +362,8 @@ void click(GtkWidget *widget, GtkWidget *entry) {
   pthread_create(&pt_server, NULL, server, &host);
   /* end tread */
   gtk_main();
-  trace_msg(DBG_MSG, "[%s], Server stopped \n",__FUNCTION__);
+  trace_msg(DBG_MSG, "[%s] Server stopped \n",__FUNCTION__);
+  flag = 0;
 }
 
 int main( int argc, char *argv[] ) {
