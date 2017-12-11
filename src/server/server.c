@@ -199,7 +199,7 @@ int recv_value(int sock, int value_cl) {
   int bytesRecv;
 
   if ((bytesRecv = recv(sock, &value_cl, sizeof(int), 0)) <= 0) {
-    trace_msg(ERR_MSG, "[%s] Server: recv_value()) failed", __FUNCTION__);
+    trace_msg(ERR_MSG, "[%s] Server: recv_value() failed", __FUNCTION__);
     exit(1);
   } else {
     trace_msg(DBG_MSG, "[%s] Server: value has recv.\n",__FUNCTION__);
@@ -226,22 +226,21 @@ void *client(void *threadArgs)
   struct prot_cl *point = (struct prot_cl*)threadArgs;
   int value_min = 0;
   int value_max = 0;
+  char cmd[64];
   struct timeval start_time, end_time;
   gettimeofday(&start_time, 0);
   
   int sock;
-  
   sock = create_socket(sock, point->port_cl);
-  trace_msg(DBG_MSG, "[%s] Port: %d",__FUNCTION__, point->port_cl);
   send_value(sock, point->size_of_mass_cl);
-  trace_msg(DBG_MSG, "[%s] Size: %d",__FUNCTION__, point->size_of_mass_cl);
-  trace_msg(DBG_MSG, "[%s] Action: %d",__FUNCTION__, point->action_cl);
-  trace_msg(DBG_MSG, "[%s] Id: %d",__FUNCTION__, point->id);
   send_data(sock, point->mass_proc_cl, point->size_of_mass_cl);
-  trace_msg(DBG_MSG,"[%s] Client %d:\n", __FUNCTION__, point->id);
-  
+  trace_msg(DBG_MSG,"[%s] Client %d on port %d. Array size %d", __FUNCTION__, 
+                                                                  point->id, 
+                                                                  point->port_cl,
+                                                                  point->size_of_mass_cl);
+
   switch (point->action_cl)
-  { 
+  {
     case 0:
       send_value(sock, point->action_cl);
       value_max = recv_value(sock, value_max);
@@ -263,7 +262,8 @@ void *client(void *threadArgs)
   }
   close(sock);
   gettimeofday(&end_time, 0);
-  print_time_diff(start_time,end_time,"Client");
+  sprintf(cmd,"Client %d", point->id);
+  print_time_diff(start_time,end_time,cmd);
 }
 
 void *server(void *threadArgs) {
