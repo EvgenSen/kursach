@@ -13,7 +13,10 @@
 #include "lib-trace.h"
 #include "lib-func.h"
 
+pthread_mutex_t lock;
+
 #define FILE_NAME "input.txt"
+
 #define N 3
 
 static GtkWidget *edit[N];    // Массив для полей ввода
@@ -30,8 +33,8 @@ struct prot_cl {
 };
 
 struct prot_serv {
-  int** mass_proc_s;
-  int size_of_mass_s[N];
+  int* mass_proc_s;
+  int size_of_mass_s;
   int action_s[N];
 };
 
@@ -131,8 +134,9 @@ int check_sameport(struct prot_cl *check, int size) {
   return 0;
 }
 
-int create_socket(int sock, int port_serv) {
+int create_socket(int port_serv) {
 
+  int sock;
 
   if ((sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0){
     trace_msg(ERR_MSG, "[%s] Server: socket() failed", __FUNCTION__);
@@ -147,32 +151,18 @@ int create_socket(int sock, int port_serv) {
   echoServAddr.sin_addr.s_addr = htonl(INADDR_ANY); /* Any incoming interface */
   echoServAddr.sin_port = htons(port_serv);              /* Local port */
 
-  /* Bind to the local address */
-  if (bind(sock, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr)) < 0) {
-    trace_msg(ERR_MSG, "[%s] Server: bind() failed", __FUNCTION__);
-    exit(1);
+  if (connect(sock, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr)) < 0) {
+    trace_msg(DBG_MSG, "[%s], socket: %d, port - %d\n",__FUNCTION__, sock, port_serv);
+    trace_msg(ERR_MSG, "[%s], Client: connect() failed", __FUNCTION__);
+    // exit(1);
   }
-
-  if (listen(sock, 5) < 0) {
-    trace_msg(ERR_MSG, "[%s] Server: listen() failed", __FUNCTION__);
-    exit(1);
-  }
-
-  struct sockaddr_in echoClntAddr; /* Client address */
-  unsigned int clntLen;            /* Length of client address data structure */
-
-  /* Set the size of the in-out parameter */
-  clntLen = sizeof(echoClntAddr);
-
-  /* Mark the socket so it will listen for incoming connections */
-  if ((sock = accept(sock, (struct sockaddr *) &echoClntAddr, &clntLen)) < 0) {
-    trace_msg(ERR_MSG, "[%s] Server: accept() failed", __FUNCTION__);
-    exit(1);
-  }
+  
   return sock;
 }
 
 void send_data(int sock, int *data, int size_of_data) {
+
+  pthread_mutex_lock(&lock);
 
   if (send(sock, data, sizeof(int)*size_of_data, 0) != sizeof(int)*size_of_data) {
     trace_msg(ERR_MSG, "[%s] Server: send() failed", __FUNCTION__);
@@ -181,9 +171,12 @@ void send_data(int sock, int *data, int size_of_data) {
   else {
     trace_msg(DBG_MSG, "[%s] Server: massive has sended.\n",__FUNCTION__);
   }
+  pthread_mutex_unlock(&lock);
 }
 
 void send_value(int sock, int value) {
+
+  pthread_mutex_lock(&lock);
 
   if (send(sock, &value, sizeof(int), 0) != sizeof(int)) {
     trace_msg(ERR_MSG, "[%s] Server: send() failed", __FUNCTION__);
@@ -192,32 +185,38 @@ void send_value(int sock, int value) {
   else {
     trace_msg(DBG_MSG, "[%s] Server: value has sended.\n",__FUNCTION__);
   }
+  pthread_mutex_unlock(&lock);
 }
 
-int recv_value(int sock, int value_cl) {
-
+int recv_value(int sock) {
+  pthread_mutex_lock(&lock);
+  int value;
   int bytesRecv;
 
-  if ((bytesRecv = recv(sock, &value_cl, sizeof(int), 0)) <= 0) {
-    trace_msg(ERR_MSG, "[%s] Server: recv_value() failed", __FUNCTION__);
+  if ((bytesRecv = recv(sock, &value, sizeof(int), 0)) <= 0) {
+    trace_msg(ERR_MSG, "[%s], Server: recv_value()) failed", __FUNCTION__);
     exit(1);
   } else {
-    trace_msg(DBG_MSG, "[%s] Server: value has recv.\n",__FUNCTION__);
+    trace_msg(DBG_MSG, "[%s], Server: value has recv.\n",__FUNCTION__);
   }
-  return value_cl;
+  pthread_mutex_unlock(&lock);
+  return value;
 }
 
 int* recv_mass(int sock, int* mass, int size_of_mas) {
 
+  pthread_mutex_lock(&lock);
   int bytesRecv;
-
-  if ((bytesRecv = recv(sock, mass, sizeof(int)*size_of_mas, 0)) <= 0) {
-    trace_msg(ERR_MSG, "[%s] Server: recv_mass()) failed", __FUNCTION__);
-    exit(1);
-  } else {
-    trace_msg(DBG_MSG, "[%s] Server: mas has recv.\n",__FUNCTION__);
+ 
+  while(bytesRecv != size_of_mas*sizeof(int)) {
+    if ((bytesRecv = recv(sock, mass, sizeof(int)*size_of_mas, 0)) <= 0) {
+      trace_msg(ERR_MSG, "[%s], Server: recv_mass()) failed", __FUNCTION__);
+      exit(1);
+    } else {
+      trace_msg(DBG_MSG, "[%s], Server: mas has recv.\n",__FUNCTION__);
+    }
   }
-  
+  pthread_mutex_unlock(&lock);
   return mass;
 }
 
@@ -231,25 +230,22 @@ void *client(void *threadArgs)
   gettimeofday(&start_time, 0);
   
   int sock;
-  sock = create_socket(sock, point->port_cl);
+
+  sock = create_socket(point->port_cl);
   send_value(sock, point->size_of_mass_cl);
   send_data(sock, point->mass_proc_cl, point->size_of_mass_cl);
-  trace_msg(DBG_MSG,"[%s] Client %d on port %d. Array size %d", __FUNCTION__, 
-                                                                  point->id, 
-                                                                  point->port_cl,
-                                                                  point->size_of_mass_cl);
 
   switch (point->action_cl)
   {
     case 0:
       send_value(sock, point->action_cl);
-      value_max = recv_value(sock, value_max);
-      trace_msg(DBG_MSG, "[%s] Client %d: action - find Max value in array (%d) \n",__FUNCTION__,point->id, value_max);
+      value_max = recv_value(sock);
+      trace_msg(DBG_MSG, "[%s], Client %d: action - find Max value in array (%d) \n",__FUNCTION__,point->id, value_max);
       break;
     case 1:
       send_value(sock, point->action_cl);
-      value_min = recv_value(sock, value_min);
-      trace_msg(DBG_MSG, "[%s] Client %d: action - find Min value in array (%d) \n",__FUNCTION__,point->id, value_min);
+      value_min = recv_value(sock);
+      trace_msg(DBG_MSG, "[%s], Client %d: action - find Min value in array (%d) \n",__FUNCTION__,point->id, value_min);
       break;
     case 2:
       send_value(sock, point->action_cl);
@@ -260,6 +256,7 @@ void *client(void *threadArgs)
       trace_msg(ERR_MSG, "[%s] Client %d: action - Unknown action \n",__FUNCTION__,point->id);
       break;
   }
+
   close(sock);
   gettimeofday(&end_time, 0);
   sprintf(cmd,"Client %d", point->id);
@@ -275,22 +272,20 @@ void *server(void *threadArgs) {
   gettimeofday(&start_time, 0);
 
   for(int i = 0; i < N; i++) {
-    trace_msg(DBG_MSG, "[%s] Size: %d",__FUNCTION__, point->size_of_mass_s[i]);
-    trace_msg(DBG_MSG, "[%s] Action: %d",__FUNCTION__, point->action_s[i]);
 
     switch (point->action_s[i])
     {
       case 0:
-        value_max = find_value(point->mass_proc_s[i], point->size_of_mass_s[i], point->action_s[i]);
-        trace_msg(DBG_MSG, "[%s] Server: action - find Max value in array (%d) \n",__FUNCTION__, value_max);
+        value_max = find_value(point->mass_proc_s, point->size_of_mass_s, point->action_s[i]);
+        trace_msg(DBG_MSG, "[%s], Server: action - find Max value in array (%d) \n",__FUNCTION__, value_max);
         break;
       case 1:
-        value_min = find_value(point->mass_proc_s[i], point->size_of_mass_s[i], point->action_s[i]);
-        trace_msg(DBG_MSG, "[%s] Server: action - find Min value in array (%d) \n",__FUNCTION__, value_min);
+        value_min = find_value(point->mass_proc_s, point->size_of_mass_s, point->action_s[i]);
+        trace_msg(DBG_MSG, "[%s], Server: action - find Min value in array (%d) \n",__FUNCTION__, value_min);
         break;
-      case 2:       
-        point->mass_proc_s[i] = sort(point->mass_proc_s[i], point->size_of_mass_s[i], point->action_s[i]);
-        trace_msg(DBG_MSG, "[%s] Server: action - Sort array\n", __FUNCTION__);
+      case 2:
+        point->mass_proc_s = sort(point->mass_proc_s, point->size_of_mass_s, point->action_s[i]);
+        trace_msg(DBG_MSG, "[%s], Server: action - Sort array\n", __FUNCTION__);
         break;
       default:
         trace_msg(ERR_MSG, "[%s] Server: action - Unknown action \n",__FUNCTION__);
@@ -312,7 +307,6 @@ void click(GtkWidget *widget, GtkWidget *entry) {
 
   struct prot_cl workers[N];
   struct prot_serv host;  
-  // int PORT[n];
 
   for(int i = 0; i < N; i++) {
     workers[i].port_cl = atoi((gchar*)gtk_entry_get_text(GTK_ENTRY(edit[i])));
@@ -336,30 +330,45 @@ void click(GtkWidget *widget, GtkWidget *entry) {
   
   int k = read_array_from_file(&mass);
 
-  /*Start Share mass */
-  int i = 0;
+  host.mass_proc_s = malloc(sizeof(int)*k);
+  host.size_of_mass_s = k;
+  for(int i = 0; i < k; i++){
+    host.mass_proc_s[i] = mass[i];
+  }
 
-  host.mass_proc_s = malloc(sizeof(int*)*N);
-
-  for(int j = 0; j < N; j++) {
-    workers[j].mass_proc_cl = malloc(sizeof(int)*(k/N));
-    host.mass_proc_s[j] = malloc(sizeof(int)*(k/N));
-    workers[j].size_of_mass_cl = (k/N);
-    host.size_of_mass_s[j] = workers[j].size_of_mass_cl;
-    for(int l = 0; l < k/N; l++) {
-      workers[j].mass_proc_cl[l] = mass[i];
-      host.mass_proc_s[j][l] = mass[i];  
-      i++;
+  for(int i = 0; i < N; i++) {
+    workers[i].mass_proc_cl = malloc(sizeof(int)*k);
+    workers[i].size_of_mass_cl = k;
+    for(int j = 0; j < k; j++) {
+      workers[i].mass_proc_cl[j] = mass[j];
     }
   }
   
   /*Start thread */
   pthread_t pt_server, clients[N];
 
+  if (pthread_mutex_init(&lock, NULL) != 0) {
+    printf("\n mutex init failed\n");
+    exit(1);
+  }
+
   for(int i = 0; i < N; i++) {
     pthread_create(&clients[i], NULL, client, &workers[i]);
   }
   pthread_create(&pt_server, NULL, server, &host);
+
+  for(int i = 0; i < N; i++) {
+    pthread_join(clients[i], NULL);
+  } 
+  pthread_join(pt_server, NULL);
+  pthread_mutex_destroy(&lock);
+  trace_msg(DBG_MSG, "[%s], Server stopped \n",__FUNCTION__);
+  
+  free(host.mass_proc_s);
+  for(int i = 0; i < N; i++) {
+    free(workers[i].mass_proc_cl);
+  }
+  flag = 0;
   /* end tread */
   gtk_main();
   trace_msg(DBG_MSG, "[%s] Server stopped \n",__FUNCTION__);
@@ -369,7 +378,7 @@ void click(GtkWidget *widget, GtkWidget *entry) {
 int main( int argc, char *argv[] ) {
   /* Описываем виджеты GTK */
   GtkWidget *label_port;
-  GtkWidget *label_action[N];
+  GtkWidget *label_action[3];
   GtkWidget *window;        // Главное окно (может содержать только один виджет!)
   GtkWidget *button_start;  // Инициализация кнопки
   GtkWidget *button_exit;

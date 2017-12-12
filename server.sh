@@ -2,5 +2,6 @@
 
 export LD_LIBRARY_PATH=$(pwd)/out/lib
 
-./out/bin/generator 100000 -1000000 1000000
+# При 5к элементах стабильно работает 
+./out/bin/generator 5000 -10000 10000
 ./out/bin/server

@@ -9,12 +9,15 @@
 #include "lib-trace.h"
 #include "lib-func.h"
 
-int create_socket(int sock, int port, char *IP) {
+int create_socket(int port, char *IP) {
+
+    int sock;
 
     if ((sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
         trace_msg(ERR_MSG, "[%s], Client: socket() failed", __FUNCTION__);
         exit(1);
     }
+
 
     struct sockaddr_in echoServAddr;
     /* Construct local address structure */
@@ -25,10 +28,28 @@ int create_socket(int sock, int port, char *IP) {
 
     /* Bind to the local address */
     
-    if (connect(sock, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr)) < 0) {
-        trace_msg(ERR_MSG, "[%s], Client: connect() failed", __FUNCTION__);
-        exit(1);
-    }
+    /* Bind to the local address */
+  if (bind(sock, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr)) < 0) {
+    trace_msg(ERR_MSG, "[%s], Server: bind() failed", __FUNCTION__);
+    exit(1);
+  }
+
+  if (listen(sock, 5) < 0) {
+    trace_msg(ERR_MSG, "[%s], Server: listen() failed", __FUNCTION__);
+    exit(1);
+  }
+
+  struct sockaddr_in echoClntAddr; /* Client address */
+  unsigned int clntLen;            /* Length of client address data structure */
+
+  /* Set the size of the in-out parameter */
+  clntLen = sizeof(echoClntAddr);
+
+  /* Mark the socket so it will listen for incoming connections */
+  if ((sock = accept(sock, (struct sockaddr *) &echoClntAddr, &clntLen)) < 0) {
+    trace_msg(ERR_MSG, "[%s], Server: accept() failed", __FUNCTION__);
+    exit(1);
+  }
 
     return sock;
 }
@@ -37,20 +58,23 @@ int* recv_data(int sock, int* mass, int size) {
 
     int bytesRecv;
 
-    if ((bytesRecv = recv(sock, mass, sizeof(int)*size, 0)) <= 0) {
-        trace_msg(ERR_MSG, "[%s], Client: recv_data() failed", __FUNCTION__);
-        exit(1);
+    while(bytesRecv != (size*sizeof(int))) {
+        if ((bytesRecv = recv(sock, mass, sizeof(int)*size, 0)) <= 0) {
+            trace_msg(ERR_MSG, "[%s], Client: recv_data() failed", __FUNCTION__);
+            exit(1);
+        }
     }
-
     return mass;
 }
 
-int recv_value(int sock, int value) {
+int recv_value(int sock) {
 
+    int value;
     int bytesRecv;
 
     if ((bytesRecv = recv(sock, &value, sizeof(int), 0)) <= 0) {
         trace_msg(ERR_MSG, "[%s], Client: recv_value()) failed", __FUNCTION__);
+        trace_msg(ERR_MSG, "[%s], Server: bytesRecv = %d", __FUNCTION__, bytesRecv);
         exit(1);
     }
 
@@ -69,12 +93,14 @@ void send_value(int sock, int value) {
 }
 
 void send_mass(int sock, int* mass, int size) {
+
      if (send(sock, mass, sizeof(int)*size, 0) != sizeof(int)*size) {
         trace_msg(ERR_MSG, "[%s], Client: send_mass() failed", __FUNCTION__);
         exit(1);
     }
     else {
         trace_msg(DBG_MSG, "[%s], Client: value has sended.\n",__FUNCTION__);
+        // trace_msg(ERR_MSG, "[%s], Server: bytesRecv = %d", __FUNCTION__, bytesRecv);
     }
 }
 
@@ -145,13 +171,14 @@ int main( int argc, char *argv[] ) {
     if(check_ip(servIP))
         return 0;
 
-    int sock = create_socket(sock, port, servIP);
+    int sock = create_socket(port, servIP);
     int size_of_mas;
-    size_of_mas = recv_value(sock, size_of_mas);
+    size_of_mas = recv_value(sock);
+    trace_msg(DBG_MSG, "[%s], Client: size_of_mas %d from server accept.\n", __FUNCTION__,size_of_mas);
     int *mass;
     mass = malloc(sizeof(int)*size_of_mas);
     mass = recv_data(sock, mass, size_of_mas);
-
+    
 /* Очень много сообщений в консоль
     for(int i = 0; i < size_of_mas; i++) {
         trace_msg(DBG_MSG, "mass[%d] = %d\n", i, mass[i]);
@@ -161,7 +188,7 @@ int main( int argc, char *argv[] ) {
     int action;
     int value;
 
-    action = recv_value(sock, action);
+    action = recv_value(sock);
     trace_msg(DBG_MSG, "[%s], Client: action %d from server accept.\n", __FUNCTION__,action);
     
     switch (action) { 
