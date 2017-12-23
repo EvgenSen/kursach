@@ -9,6 +9,7 @@
 #include <time.h>
 #include <sys/time.h>
 #include <pthread.h>
+#include <errno.h>
   
 #include "lib-trace.h"
 #include "lib-func.h"
@@ -16,11 +17,11 @@
 pthread_mutex_t lock;
 
 #define FILE_NAME "input.txt"
+#define CLIENT_COUNT 3
+#define WITH_CLIENT  1  /* Если нужно провести расчеты без передачи данных клиентам, поставить 0*/
 
-#define N 3
-
-static GtkWidget *edit[N];    // Массив для полей ввода
-static GtkWidget *combo[N];      // ComboBox для списка
+static GtkWidget *edit[CLIENT_COUNT];    // Массив для полей ввода
+static GtkWidget *combo[CLIENT_COUNT];   // ComboBox для списка
 
 unsigned flag = 0; /* блокируем повторный запуск сервера */
 
@@ -35,24 +36,17 @@ struct prot_cl {
 struct prot_serv {
   int* mass_proc_s;
   int size_of_mass_s;
-  int action_s[N];
+  int action_s[CLIENT_COUNT];
 };
 
-/* Возвращает милисекунды */
-int get_time ()
-{
-  struct timeval tv;
-  gettimeofday(&tv, 0);
-  return (int)tv.tv_usec / 1000;
-}
-
-void print_time_diff (struct timeval tv_start, struct timeval tv_end, char * app)
+void print_time_diff (struct timeval tv_start, struct timeval tv_end, char * tread_name)
 {
   int ms = (int)(tv_end.tv_usec - tv_start.tv_usec) / 1000;
   int s  = (int)(tv_end.tv_sec - tv_start.tv_sec);
   if (ms < 0)
     ms = 1 - ms;
-  trace_msg(DBG_MSG, "[%s] Time work of %s: %d ms \n",__FUNCTION__, app, s * 1000 + ms);
+  trace_msg(INF_MSG, "[Line:%4d] %s: Work time is %d ms ",__LINE__, tread_name, s * 1000 + ms);
+  //trace_msg(DBG_MSG, "[Line:%4d] %s: Work time is %d ms ",__LINE__, tread_name, s * 1000 + ms);
 }
 
 int read_array_from_file(int ** mass)
@@ -64,7 +58,7 @@ int read_array_from_file(int ** mass)
 
   f = fopen(FILE_NAME, "r");
   if (f == NULL) {
-    trace_msg(ERR_MSG, "[%s] Can not open file\n",__FUNCTION__);
+    trace_msg(ERR_MSG, "[Line:%4d] Can not open file",__LINE__);
     return -1;
   }
 
@@ -74,7 +68,7 @@ int read_array_from_file(int ** mass)
     (*mass)[i] = atoi(line);
     i++;
   }
-  trace_msg(DBG_MSG, "[%s] Read %d numbers from '%s' \n",__FUNCTION__,i, FILE_NAME);
+  trace_msg(DBG_MSG, "[Line:%4d] Read %d numbers from '%s' ",__LINE__,i, FILE_NAME);
 
   if (line != NULL) {
     free(line);
@@ -103,7 +97,7 @@ void welcome (GtkButton *button, gpointer data) {
         content_area = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
 
         /* сама метка */
-        label = gtk_label_new("\n\nСообщение\n\n");
+        label = gtk_label_new("Сообщение");
         gtk_container_add(GTK_CONTAINER(content_area), label);
         gtk_widget_show(label);
 
@@ -117,7 +111,7 @@ int check_port(int port)
 {
   if (port > 65536 || port <= 0)
   {
-    trace_msg(ERR_MSG, "[%s] Incorrect port value '%d' ", __FUNCTION__,port);
+    trace_msg(ERR_MSG, "[Line:%4d] Incorrect port value '%d' ", __LINE__,port);
     return 1;
   }
   return 0;
@@ -127,19 +121,19 @@ int check_sameport(struct prot_cl *check, int size) {
 
   for(int i = 0; i < size - 1; i++) {
     if(check[i].port_cl == check[i+1].port_cl) {
-      trace_msg(ERR_MSG, "[%s] Same ports '%d' and  '%d', choise other number of port", __FUNCTION__,check[i].port_cl,check[i+1].port_cl);
+      trace_msg(ERR_MSG, "[Line:%4d] Same ports '%d' and  '%d', choise other number of port", __LINE__,check[i].port_cl,check[i+1].port_cl);
       return 1;
     }
   }
   return 0;
 }
 
-int create_socket(int port_serv) {
+int create_socket(int port_serv, char * tread_name) {
 
   int sock;
 
   if ((sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0){
-    trace_msg(ERR_MSG, "[%s] Server: socket() failed", __FUNCTION__);
+    trace_msg(ERR_MSG, "[Line:%4d] %s: socket() failed. \"%s\"", __LINE__, tread_name, strerror(errno));
     exit(1);
   }
 
@@ -149,71 +143,77 @@ int create_socket(int port_serv) {
   memset(&echoServAddr, 0, sizeof(echoServAddr));   /* Zero out structure */
   echoServAddr.sin_family = AF_INET;                /* Internet address family */
   echoServAddr.sin_addr.s_addr = htonl(INADDR_ANY); /* Any incoming interface */
-  echoServAddr.sin_port = htons(port_serv);              /* Local port */
+  echoServAddr.sin_port = htons(port_serv);         /* Local port */
 
   if (connect(sock, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr)) < 0) {
-    trace_msg(DBG_MSG, "[%s], socket: %d, port - %d\n",__FUNCTION__, sock, port_serv);
-    trace_msg(ERR_MSG, "[%s], Client: connect() failed", __FUNCTION__);
+    trace_msg(ERR_MSG, "[Line:%4d] %s: connect() failed, socket = %d, port = %d", __LINE__, tread_name, sock, port_serv);
+    trace_msg(ERR_MSG, "[Line:%4d] %s: \"%s\"", __LINE__, tread_name, strerror(errno));
+    return -1;
     // exit(1);
   }
-  
+
   return sock;
 }
 
-void send_data(int sock, int *data, int size_of_data) {
+void send_data(int sock, int *data, int size_of_data, char * tread_name) {
 
   pthread_mutex_lock(&lock);
 
   if (send(sock, data, sizeof(int)*size_of_data, 0) != sizeof(int)*size_of_data) {
-    trace_msg(ERR_MSG, "[%s] Server: send() failed", __FUNCTION__);
+    trace_msg(ERR_MSG, "[Line:%4d] %s: send() failed. \"%s\"", __LINE__, tread_name, strerror(errno));
     exit(1);
   }
   else {
-    trace_msg(DBG_MSG, "[%s] Server: massive has sended.\n",__FUNCTION__);
+    trace_msg(DBG_MSG, "[Line:%4d] %s: Massive has sended. Size %d.",__LINE__, tread_name, size_of_data);
   }
   pthread_mutex_unlock(&lock);
 }
 
-void send_value(int sock, int value) {
+void send_value(int sock, int value, char * tread_name) {
 
   pthread_mutex_lock(&lock);
 
   if (send(sock, &value, sizeof(int), 0) != sizeof(int)) {
-    trace_msg(ERR_MSG, "[%s] Server: send() failed", __FUNCTION__);
+    trace_msg(ERR_MSG, "[Line:%4d] %s: send() failed. \"%s\"", __LINE__, tread_name, strerror(errno));
+    pthread_mutex_unlock(&lock);
     exit(1);
   }
   else {
-    trace_msg(DBG_MSG, "[%s] Server: value has sended.\n",__FUNCTION__);
+    trace_msg(DBG_MSG, "[Line:%4d] %s: Value (%d) has sended.",__LINE__, tread_name, value);
   }
   pthread_mutex_unlock(&lock);
 }
 
-int recv_value(int sock) {
+int recv_value(int sock, char * tread_name) {
   pthread_mutex_lock(&lock);
   int value;
   int bytesRecv;
 
   if ((bytesRecv = recv(sock, &value, sizeof(int), 0)) <= 0) {
-    trace_msg(ERR_MSG, "[%s], Server: recv_value()) failed", __FUNCTION__);
+    trace_msg(ERR_MSG, "[Line:%4d] %s: recv_value() failed, \"%s\"", __LINE__, tread_name, strerror(errno));
     exit(1);
   } else {
-    trace_msg(DBG_MSG, "[%s], Server: value has recv.\n",__FUNCTION__);
+    trace_msg(DBG_MSG, "[Line:%4d] %s: Value received (%d)",__LINE__, tread_name, value);
   }
   pthread_mutex_unlock(&lock);
   return value;
 }
 
-int* recv_mass(int sock, int* mass, int size_of_mas) {
+int* recv_mass(int sock, int* mass, int size_of_mas, char * tread_name) {
 
   pthread_mutex_lock(&lock);
   int bytesRecv;
  
   while(bytesRecv != size_of_mas*sizeof(int)) {
     if ((bytesRecv = recv(sock, mass, sizeof(int)*size_of_mas, 0)) <= 0) {
-      trace_msg(ERR_MSG, "[%s], Server: recv_mass()) failed", __FUNCTION__);
-      exit(1);
+      trace_msg(ERR_MSG, "[Line:%4d] %s: recv_mass() failed, SizeMass(%d)/SizeRecv(%d)", __LINE__,
+                                                                                          tread_name,
+                                                                                          size_of_mas,
+                                                                                          bytesRecv);
+      trace_msg(ERR_MSG, "[Line:%4d] %s: \"%s\"", __LINE__, tread_name, strerror(errno));
+      //exit(1);
     } else {
-      trace_msg(DBG_MSG, "[%s], Server: mas has recv.\n",__FUNCTION__);
+      trace_msg(DBG_MSG, "[Line:%4d] %s: Massive received %d/%d",__LINE__,tread_name,bytesRecv, size_of_mas);
     }
   }
   pthread_mutex_unlock(&lock);
@@ -225,42 +225,47 @@ void *client(void *threadArgs)
   struct prot_cl *point = (struct prot_cl*)threadArgs;
   int value_min = 0;
   int value_max = 0;
-  char cmd[64];
+  char thread_name[64];
+  sprintf(thread_name,"Client %d", point->id);
+  trace_msg(DBG_MSG, "[Line:%4d] %s: Start ", __LINE__, thread_name);
+
   struct timeval start_time, end_time;
   gettimeofday(&start_time, 0);
   
   int sock;
+  sock = create_socket(point->port_cl, thread_name);
+  if (sock == -1)
+    return (void *)-1;
 
-  sock = create_socket(point->port_cl);
-  send_value(sock, point->size_of_mass_cl);
-  send_data(sock, point->mass_proc_cl, point->size_of_mass_cl);
+  send_value(sock, point->size_of_mass_cl, thread_name);
+  send_data(sock, point->mass_proc_cl, point->size_of_mass_cl, thread_name);
 
   switch (point->action_cl)
   {
     case 0:
-      send_value(sock, point->action_cl);
-      value_max = recv_value(sock);
-      trace_msg(DBG_MSG, "[%s], Client %d: action - find Max value in array (%d) \n",__FUNCTION__,point->id, value_max);
+      send_value(sock, point->action_cl, thread_name);
+      value_max = recv_value(sock, thread_name);
+      trace_msg(INF_MSG, "[Line:%4d] %s: Get result, Max value in array (%d) ",__LINE__, thread_name, value_max);
       break;
     case 1:
-      send_value(sock, point->action_cl);
-      value_min = recv_value(sock);
-      trace_msg(DBG_MSG, "[%s], Client %d: action - find Min value in array (%d) \n",__FUNCTION__,point->id, value_min);
+      send_value(sock, point->action_cl, thread_name);
+      value_min = recv_value(sock, thread_name);
+      trace_msg(INF_MSG, "[Line:%4d] %s: Get result, Min value in array (%d) ",__LINE__, thread_name, value_min);
       break;
     case 2:
-      send_value(sock, point->action_cl);
-      point->mass_proc_cl = recv_mass(sock, point->mass_proc_cl, point->size_of_mass_cl);
-      trace_msg(DBG_MSG, "[%s] Client %d: action - Sort array\n", __FUNCTION__,point->id);
+      send_value(sock, point->action_cl, thread_name);
+      point->mass_proc_cl = recv_mass(sock, point->mass_proc_cl, point->size_of_mass_cl, thread_name);
+      trace_msg(INF_MSG, "[Line:%4d] %s: Get result, Sorted array", __LINE__, thread_name);
       break;
     default:
-      trace_msg(ERR_MSG, "[%s] Client %d: action - Unknown action \n",__FUNCTION__,point->id);
+      trace_msg(ERR_MSG, "[Line:%4d] %s: Unknown action (%d) ",__LINE__, thread_name, point->action_cl);
       break;
   }
 
   close(sock);
+  //trace_msg(DBG_MSG, "[Line:%4d] %s: End ", __LINE__,thread_name);
   gettimeofday(&end_time, 0);
-  sprintf(cmd,"Client %d", point->id);
-  print_time_diff(start_time,end_time,cmd);
+  print_time_diff(start_time, end_time, thread_name);
 }
 
 void *server(void *threadArgs) {
@@ -270,58 +275,64 @@ void *server(void *threadArgs) {
   int value_min;
   struct timeval start_time, end_time;
   gettimeofday(&start_time, 0);
-
-  for(int i = 0; i < N; i++) {
+  trace_msg(DBG_MSG, "[Line:%4d] Server: Start ", __LINE__);
+  for(int i = 0; i < CLIENT_COUNT; i++) {
 
     switch (point->action_s[i])
     {
       case 0:
         value_max = find_value(point->mass_proc_s, point->size_of_mass_s, point->action_s[i]);
-        trace_msg(DBG_MSG, "[%s], Server: action - find Max value in array (%d) \n",__FUNCTION__, value_max);
+        trace_msg(INF_MSG, "[Line:%4d] Server: Action %d completed, Max value in array (%d) ",__LINE__, i, value_max);
         break;
       case 1:
         value_min = find_value(point->mass_proc_s, point->size_of_mass_s, point->action_s[i]);
-        trace_msg(DBG_MSG, "[%s], Server: action - find Min value in array (%d) \n",__FUNCTION__, value_min);
+        trace_msg(INF_MSG, "[Line:%4d] Server: Action %d completed, Min value in array (%d) ",__LINE__, i, value_min);
         break;
       case 2:
         point->mass_proc_s = sort(point->mass_proc_s, point->size_of_mass_s, point->action_s[i]);
-        trace_msg(DBG_MSG, "[%s], Server: action - Sort array\n", __FUNCTION__);
+        trace_msg(INF_MSG, "[Line:%4d] Server: Action %d completed, Array sorted", __LINE__, i);
         break;
       default:
-        trace_msg(ERR_MSG, "[%s] Server: action - Unknown action \n",__FUNCTION__);
+        trace_msg(ERR_MSG, "[Line:%4d] Server: Unknown action (%d)",__LINE__, point->action_s[i]);
         break;
     }  
   }
   gettimeofday(&end_time, 0);
-  print_time_diff(start_time,end_time,"Server");
+  print_time_diff(start_time, end_time, "Server");
 }
 
 /* Обрабатываем входные данные и запускаем работу */
 void click(GtkWidget *widget, GtkWidget *entry) {
 
   if (flag) {
-    trace_msg(ERR_MSG, "[%s] Server is already running \n",__FUNCTION__);
+    trace_msg(ERR_MSG, "[Line:%4d] Server is already running ",__LINE__);
     return;
   }
   flag = 1;
 
-  struct prot_cl workers[N];
+  trace_msg(INF_MSG, "[Line:%4d] ======= Start ======= ",__LINE__);
+
+  struct prot_cl workers[CLIENT_COUNT];
   struct prot_serv host;  
 
-  for(int i = 0; i < N; i++) {
+  for(int i = 0; i < CLIENT_COUNT; i++) {
     workers[i].port_cl = atoi((gchar*)gtk_entry_get_text(GTK_ENTRY(edit[i])));
     workers[i].action_cl = gtk_combo_box_get_active(GTK_COMBO_BOX(combo[i]));
     workers[i].id = i;
     host.action_s[i] = workers[i].action_cl;
   }
 
-  for(int i = 0; i < N; i++) {
-    if (check_port(workers[i].port_cl))
+  for(int i = 0; i < CLIENT_COUNT; i++) {
+    if (check_port(workers[i].port_cl)) {
+      flag = 0;
       return;
+    }
   }
 
-  if (check_sameport(workers, N))
+  if (check_sameport(workers, CLIENT_COUNT)) {
+    flag = 0;
     return;
+  }
 
   int start_t_cl, stop_t_cl;
   int *mass = NULL;
@@ -336,7 +347,7 @@ void click(GtkWidget *widget, GtkWidget *entry) {
     host.mass_proc_s[i] = mass[i];
   }
 
-  for(int i = 0; i < N; i++) {
+  for(int i = 0; i < CLIENT_COUNT; i++) {
     workers[i].mass_proc_cl = malloc(sizeof(int)*k);
     workers[i].size_of_mass_cl = k;
     for(int j = 0; j < k; j++) {
@@ -345,33 +356,38 @@ void click(GtkWidget *widget, GtkWidget *entry) {
   }
   
   /*Start thread */
-  pthread_t pt_server, clients[N];
+  pthread_t pt_server, clients[CLIENT_COUNT];
 
   if (pthread_mutex_init(&lock, NULL) != 0) {
-    printf("\n mutex init failed\n");
+    trace_msg(ERR_MSG,"[Line:%4d] Mutex init failed",__LINE__);
     exit(1);
   }
 
-  for(int i = 0; i < N; i++) {
+  trace_msg(DBG_MSG,"[Line:%4d] Start create thread's",__LINE__);
+#if WITH_CLIENT
+  for(int i = 0; i < CLIENT_COUNT; i++) {
     pthread_create(&clients[i], NULL, client, &workers[i]);
   }
+#endif
   pthread_create(&pt_server, NULL, server, &host);
 
-  for(int i = 0; i < N; i++) {
+#if WITH_CLIENT
+  for(int i = 0; i < CLIENT_COUNT; i++) {
     pthread_join(clients[i], NULL);
-  } 
+  }
+#endif
   pthread_join(pt_server, NULL);
   pthread_mutex_destroy(&lock);
-  trace_msg(DBG_MSG, "[%s], Server stopped \n",__FUNCTION__);
+  trace_msg(INF_MSG, "[Line:%4d] Calculations completed ",__LINE__);
   
   free(host.mass_proc_s);
-  for(int i = 0; i < N; i++) {
+  for(int i = 0; i < CLIENT_COUNT; i++) {
     free(workers[i].mass_proc_cl);
   }
   flag = 0;
   /* end tread */
   gtk_main();
-  trace_msg(DBG_MSG, "[%s] Server stopped \n",__FUNCTION__);
+  trace_msg(DBG_MSG, "[Line:%4d] Exit ",__LINE__);
   flag = 0;
 }
 
@@ -389,8 +405,9 @@ int main( int argc, char *argv[] ) {
   window = gtk_window_new(GTK_WINDOW_TOPLEVEL);             // Создаем главное окно
   gtk_window_set_title(GTK_WINDOW(window),"Сервер");        // Устанавливаем заголовок окна
 
+  /* Если содержимое будет больше, то окно растянется под содержимое */
   gint width_w = 350;    // Ширина окна
-  gint height_w = 350;   // Высота окна
+  gint height_w = 250;   // Высота окна
 
   gtk_window_set_default_size (GTK_WINDOW(window), width_w, height_w);   // Установка размеров окна (width * height) при запуске приложения
 
@@ -400,15 +417,15 @@ int main( int argc, char *argv[] ) {
   grid = gtk_grid_new();                                       // Создание grid
   gtk_container_add(GTK_CONTAINER(window), grid);              // Вставляем grid в главное окно
 
-  gint width_e = 250;                                                       // ширина поля ввода
+  gint width_e = 260;                                                       // ширина поля ввода
   gint height_e = 0;                                                        // высота поля ввода
 
   edit[0] = gtk_entry_new();                                                // создание первого поля ввода
   gtk_widget_set_size_request(edit[0], width_e, height_e);                  // устанавливаем размеры поля ввода
-  label_port = gtk_label_new("Порт для клиента №1");                        // Создаем label
+  label_port = gtk_label_new("    Порт для клиента №1    ");                // Создаем label
   gtk_grid_attach(GTK_GRID(grid), label_port, 0, 0, 1, 1);                  // Помещаем label в grid
 
-  gtk_entry_set_text(GTK_ENTRY(edit[0]), "Введите порт для клиента №1");     // Иницилизация начальной строки в поле ввода(edit[0])
+  gtk_entry_set_text(GTK_ENTRY(edit[0]), "Введите порт для клиента №1");    // Иницилизация начальной строки в поле ввода(edit[0])
   gtk_grid_attach(GTK_GRID(grid), edit[0], 1, 0, 1, 1);
 
   label_action[0] = gtk_label_new("Действие");                                 // Создаем label
@@ -424,7 +441,7 @@ int main( int argc, char *argv[] ) {
 
   edit[1] = gtk_entry_new();                                                // создание первого поля ввода
   gtk_widget_set_size_request(edit[1], width_e, height_e);                  // устанавливаем размеры поля ввода
-  label_port = gtk_label_new("Порт для клиента №2");                        // Создаем label
+  label_port = gtk_label_new("    Порт для клиента №2    ");                // Создаем label
   gtk_grid_attach(GTK_GRID(grid), label_port, 0, 2, 1, 1);                  // Помещаем label в grid
 
   gtk_entry_set_text(GTK_ENTRY(edit[1]), "Введите порт для клиента №2");    // Иницилизация начальной строки в поле ввода(edit[1])
@@ -442,7 +459,7 @@ int main( int argc, char *argv[] ) {
 
   edit[2] = gtk_entry_new();                                                // создание первого поля ввода
   gtk_widget_set_size_request(edit[2], width_e, height_e);                  // устанавливаем размеры поля ввода
-  label_port = gtk_label_new("Порт для клиента №3");                        // Создаем label
+  label_port = gtk_label_new("    Порт для клиента №3    ");                // Создаем label
   gtk_grid_attach(GTK_GRID(grid), label_port, 0, 4, 1, 1);                  // Помещаем label в grid
 
   gtk_entry_set_text(GTK_ENTRY(edit[2]), "Введите порт для клиента №3");     // Иницилизация начальной строки в поле ввода(edit[1])

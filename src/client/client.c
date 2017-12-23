@@ -88,7 +88,7 @@ void send_value(int sock, int value) {
         exit(1);
     }
     else {
-        trace_msg(DBG_MSG, "[%s], Client: value has sended.\n",__FUNCTION__);
+        trace_msg(DBG_MSG, "[%s], Client: Value (%d) has sended.\n",__FUNCTION__, value);
     }
 }
 
@@ -99,7 +99,7 @@ void send_mass(int sock, int* mass, int size) {
         exit(1);
     }
     else {
-        trace_msg(DBG_MSG, "[%s], Client: value has sended.\n",__FUNCTION__);
+        trace_msg(DBG_MSG, "[%s], Client: Massive has sended. Size %d \n",__FUNCTION__, size);
         // trace_msg(ERR_MSG, "[%s], Server: bytesRecv = %d", __FUNCTION__, bytesRecv);
     }
 }
