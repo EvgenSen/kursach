@@ -78,6 +78,25 @@ int read_array_from_file(int ** mass)
   return i;
 }
 
+int write_array_to_file(int * mass, int size, char * filename)
+{
+  FILE *f = NULL;
+  int i;
+
+  f = fopen(filename, "w");
+  if (f == NULL) {
+    trace_msg(ERR_MSG, "[Line:%4d] Can not create file",__LINE__);
+    return -1;
+  }
+
+  for(i=0; i<size; ++i){
+    fprintf(f,"%d\n",mass[i]);
+  }
+  fclose(f);
+
+  return 0;
+}
+
 /* выводит приветствие */
 void welcome (GtkButton *button, gpointer data) {
         /* виджеты */
@@ -199,22 +218,40 @@ int recv_value(int sock, char * tread_name) {
   return value;
 }
 
-int* recv_mass(int sock, int* mass, int size_of_mas, char * tread_name) {
+int* recv_data(int sock, int* mass, int size_of_mas, char * tread_name) {
 
   pthread_mutex_lock(&lock);
-  int bytesRecv;
- 
-  while(bytesRecv != size_of_mas*sizeof(int)) {
-    if ((bytesRecv = recv(sock, mass, sizeof(int)*size_of_mas, 0)) <= 0) {
-      trace_msg(ERR_MSG, "[Line:%4d] %s: recv_mass() failed, SizeMass(%d)/SizeRecv(%d)", __LINE__,
-                                                                                          tread_name,
-                                                                                          size_of_mas,
-                                                                                          bytesRecv);
-      trace_msg(ERR_MSG, "[Line:%4d] %s: \"%s\"", __LINE__, tread_name, strerror(errno));
-      //exit(1);
-    } else {
-      trace_msg(DBG_MSG, "[Line:%4d] %s: Massive received %d/%d",__LINE__,tread_name,bytesRecv, size_of_mas);
+  int bytesRecv = 0;
+  int bytesRecvTMP = 0;
+  int shift = 0;
+
+  while(bytesRecv != (size_of_mas*sizeof(int))) 
+  {
+    // TODO: смещать массив при получении данных кусками
+    //bytesRecvTMP = recv(sock, mass + bytesRecv, sizeof(int)*size_of_mas - bytesRecv, 0);
+    bytesRecvTMP = recv(sock, &mass[shift], sizeof(int)*size_of_mas - bytesRecvTMP, 0);
+
+    if (bytesRecvTMP == 0)
+    {
+      trace_msg(ERR_MSG, "[Line:%4d] %s: Socket closed before enough data received", __LINE__, tread_name);
+      pthread_mutex_unlock(&lock);
+      break;
     }
+    else if (bytesRecvTMP < 0)
+    {
+      trace_msg(ERR_MSG, "[Line:%4d] %s: recv_data() failed, \"%s\"", __LINE__, tread_name, strerror(errno));
+      pthread_mutex_unlock(&lock);
+      break;
+    }
+    else if (bytesRecvTMP > size_of_mas*sizeof(int))
+    {
+      // больше не должно происходить
+      trace_msg(ERR_MSG, "[Line:%4d] Client: recv_data() failed, received extra data (%d/%d)", __LINE__, bytesRecv, size_of_mas*sizeof(int));
+    }
+    bytesRecv += bytesRecvTMP;
+    shift = bytesRecv / sizeof(int);
+    trace_msg(DBG_MSG, "[Line:%4d] Client: Data received (%d/%d)(%d/%d)",__LINE__, bytesRecv, size_of_mas*sizeof(int),
+                                                                                   shift, size_of_mas);
   }
   pthread_mutex_unlock(&lock);
   return mass;
@@ -237,25 +274,28 @@ void *client(void *threadArgs)
   if (sock == -1)
     return (void *)-1;
 
+  /* Сначала отправляем действие
+   * Затем отправляем размер массива
+   * Массив отправляем в последнюю очередь, так как может захватит с собой лишние данные
+   */
+  send_value(sock, point->action_cl, thread_name);
   send_value(sock, point->size_of_mass_cl, thread_name);
   send_data(sock, point->mass_proc_cl, point->size_of_mass_cl, thread_name);
 
   switch (point->action_cl)
   {
     case 0:
-      send_value(sock, point->action_cl, thread_name);
       value_max = recv_value(sock, thread_name);
       trace_msg(INF_MSG, "[Line:%4d] %s: Get result, Max value in array (%d) ",__LINE__, thread_name, value_max);
       break;
     case 1:
-      send_value(sock, point->action_cl, thread_name);
       value_min = recv_value(sock, thread_name);
       trace_msg(INF_MSG, "[Line:%4d] %s: Get result, Min value in array (%d) ",__LINE__, thread_name, value_min);
       break;
     case 2:
-      send_value(sock, point->action_cl, thread_name);
-      point->mass_proc_cl = recv_mass(sock, point->mass_proc_cl, point->size_of_mass_cl, thread_name);
+      point->mass_proc_cl = recv_data(sock, point->mass_proc_cl, point->size_of_mass_cl, thread_name);
       trace_msg(INF_MSG, "[Line:%4d] %s: Get result, Sorted array", __LINE__, thread_name);
+      write_array_to_file(point->mass_proc_cl, point->size_of_mass_cl, "result_client.txt");
       break;
     default:
       trace_msg(ERR_MSG, "[Line:%4d] %s: Unknown action (%d) ",__LINE__, thread_name, point->action_cl);
@@ -271,8 +311,8 @@ void *client(void *threadArgs)
 void *server(void *threadArgs) {
 
   struct prot_serv *point = (struct prot_serv*)threadArgs;
-  int value_max; 
-  int value_min;
+  int value_max = 0; 
+  int value_min = 0;
   struct timeval start_time, end_time;
   gettimeofday(&start_time, 0);
   trace_msg(DBG_MSG, "[Line:%4d] Server: Start ", __LINE__);
@@ -291,6 +331,7 @@ void *server(void *threadArgs) {
       case 2:
         point->mass_proc_s = sort(point->mass_proc_s, point->size_of_mass_s, point->action_s[i]);
         trace_msg(INF_MSG, "[Line:%4d] Server: Action %d completed, Array sorted", __LINE__, i);
+        write_array_to_file(point->mass_proc_s, point->size_of_mass_s, "result_server.txt");
         break;
       default:
         trace_msg(ERR_MSG, "[Line:%4d] Server: Unknown action (%d)",__LINE__, point->action_s[i]);

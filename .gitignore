@@ -2,3 +2,5 @@ out
 obj
 config.mk
 input.txt
+result_server.txt
+result_client.txt

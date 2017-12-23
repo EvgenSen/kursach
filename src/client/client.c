@@ -5,6 +5,7 @@
 #include <string.h>     
 #include <time.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include "lib-trace.h"
 #include "lib-func.h"
@@ -14,7 +15,7 @@ int create_socket(int port, char *IP) {
     int sock;
 
     if ((sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
-        trace_msg(ERR_MSG, "[%s], Client: socket() failed", __FUNCTION__);
+        trace_msg(ERR_MSG, "[Line:%4d] Client: socket() failed", __LINE__);
         exit(1);
     }
 
@@ -30,12 +31,12 @@ int create_socket(int port, char *IP) {
     
     /* Bind to the local address */
   if (bind(sock, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr)) < 0) {
-    trace_msg(ERR_MSG, "[%s], Server: bind() failed", __FUNCTION__);
+    trace_msg(ERR_MSG, "[Line:%4d] Server: bind() failed", __LINE__);
     exit(1);
   }
 
   if (listen(sock, 5) < 0) {
-    trace_msg(ERR_MSG, "[%s], Server: listen() failed", __FUNCTION__);
+    trace_msg(ERR_MSG, "[Line:%4d] Server: listen() failed", __LINE__);
     exit(1);
   }
 
@@ -47,24 +48,56 @@ int create_socket(int port, char *IP) {
 
   /* Mark the socket so it will listen for incoming connections */
   if ((sock = accept(sock, (struct sockaddr *) &echoClntAddr, &clntLen)) < 0) {
-    trace_msg(ERR_MSG, "[%s], Server: accept() failed", __FUNCTION__);
+    trace_msg(ERR_MSG, "[Line:%4d] Server: accept() failed", __LINE__);
     exit(1);
   }
 
     return sock;
 }
-
+/*
 int* recv_data(int sock, int* mass, int size) {
 
     int bytesRecv;
 
     while(bytesRecv != (size*sizeof(int))) {
         if ((bytesRecv = recv(sock, mass, sizeof(int)*size, 0)) <= 0) {
-            trace_msg(ERR_MSG, "[%s], Client: recv_data() failed", __FUNCTION__);
+            trace_msg(ERR_MSG, "[Line:%4d] Client: recv_data() failed", __LINE__);
             exit(1);
         }
     }
     return mass;
+}
+*/
+int* recv_data(int sock, int* mass, int size) {
+
+  int bytesRecv = 0;
+  int bytesRecvTMP = 0;
+  int shift = 0;
+
+  while(bytesRecv != (size*sizeof(int))) 
+  {
+    bytesRecvTMP = recv(sock, &mass[shift], sizeof(int)*size - bytesRecv, 0);
+
+    if (bytesRecvTMP == 0)
+    {
+      trace_msg(ERR_MSG, "[Line:%4d] Client: Socket closed before enough data received", __LINE__);
+      break;
+    }
+    else if (bytesRecvTMP < 0)
+    {
+      trace_msg(ERR_MSG, "[Line:%4d] Client: recv_data() failed, \"%s\"", __LINE__, strerror(errno));
+      break;
+    }
+    else if (bytesRecvTMP > size*sizeof(int))
+    {
+      trace_msg(ERR_MSG, "[Line:%4d] Client: recv_data() failed, received extra data (%d/%d)", __LINE__, bytesRecv, size*sizeof(int));
+    }
+    bytesRecv += bytesRecvTMP;
+    shift = bytesRecv / sizeof(int);
+    trace_msg(DBG_MSG, "[Line:%4d] Client: Data received (%d/%d)(%d/%d)",__LINE__, bytesRecv, size*sizeof(int),
+                                                                                   shift, size);
+  }
+  return mass;
 }
 
 int recv_value(int sock) {
@@ -73,9 +106,11 @@ int recv_value(int sock) {
     int bytesRecv;
 
     if ((bytesRecv = recv(sock, &value, sizeof(int), 0)) <= 0) {
-        trace_msg(ERR_MSG, "[%s], Client: recv_value()) failed", __FUNCTION__);
-        trace_msg(ERR_MSG, "[%s], Server: bytesRecv = %d", __FUNCTION__, bytesRecv);
-        exit(1);
+      trace_msg(ERR_MSG, "[Line:%4d] Client: recv_value()) failed", __LINE__);
+      trace_msg(ERR_MSG, "[Line:%4d] Server: bytesRecv = %d", __LINE__, bytesRecv);
+      exit(1);
+    } else {
+      trace_msg(DBG_MSG, "[Line:%4d] Client: Value received (%d)",__LINE__, value);
     }
 
     return value;
@@ -84,23 +119,23 @@ int recv_value(int sock) {
 void send_value(int sock, int value) {
 
     if (send(sock, &value, sizeof(int), 0) != sizeof(int)) {
-        trace_msg(ERR_MSG, "[%s], Client: send_value() failed", __FUNCTION__);
+        trace_msg(ERR_MSG, "[Line:%4d] Client: send_value() failed", __LINE__);
         exit(1);
     }
     else {
-        trace_msg(DBG_MSG, "[%s], Client: Value (%d) has sended.\n",__FUNCTION__, value);
+        trace_msg(DBG_MSG, "[Line:%4d] Client: Value (%d) has sended.\n",__LINE__, value);
     }
 }
 
 void send_mass(int sock, int* mass, int size) {
 
      if (send(sock, mass, sizeof(int)*size, 0) != sizeof(int)*size) {
-        trace_msg(ERR_MSG, "[%s], Client: send_mass() failed", __FUNCTION__);
+        trace_msg(ERR_MSG, "[Line:%4d] Client: send_mass() failed", __LINE__);
         exit(1);
     }
     else {
-        trace_msg(DBG_MSG, "[%s], Client: Massive has sended. Size %d \n",__FUNCTION__, size);
-        // trace_msg(ERR_MSG, "[%s], Server: bytesRecv = %d", __FUNCTION__, bytesRecv);
+        trace_msg(DBG_MSG, "[Line:%4d] Client: Massive has sended. Size %d \n",__LINE__, size);
+        // trace_msg(ERR_MSG, "[Line:%4d] Server: bytesRecv = %d", __LINE__, bytesRecv);
     }
 }
 
@@ -108,7 +143,7 @@ int check_port(int port)
 {
   if (port > 65536 || port <= 0)
   {
-    trace_msg(ERR_MSG, "[%s] Incorrect port value '%d' ", __FUNCTION__,port);
+    trace_msg(ERR_MSG, "[Line:%4d] Incorrect port value '%d' ", __LINE__,port);
     return 1;
   }
   return 0;
@@ -116,7 +151,7 @@ int check_port(int port)
 
 int check_ip(char *addr) {
     if (!addr){
-        trace_msg(ERR_MSG, "[%s] Empty value ", __FUNCTION__);
+        trace_msg(ERR_MSG, "[Line:%4d] Empty value ", __LINE__);
         return -1;
     }
  
@@ -129,13 +164,13 @@ int check_ip(char *addr) {
      if (addr[i] == '.')
        dot++;
      else if (addr[i] < 48 || addr[i] > 57) {
-       trace_msg(ERR_MSG, "[%s] '%s' - Incorrect IP addres 1", __FUNCTION__,addr);
+       trace_msg(ERR_MSG, "[Line:%4d] '%s' - Incorrect IP addres 1", __LINE__,addr);
        return -1;
      }
    }
  
    if (dot != 3) {
-     trace_msg(ERR_MSG, "[%s] '%s' - Incorrect IP addres 2", __FUNCTION__,addr);
+     trace_msg(ERR_MSG, "[Line:%4d] '%s' - Incorrect IP addres 2", __LINE__,addr);
      return -1;
    }
  
@@ -143,12 +178,12 @@ int check_ip(char *addr) {
    {
      for (i = 0; i < 4; i++)
        if (x[i] < 0 || x[i] > 255){
-         trace_msg(ERR_MSG, "[%s] '%s' - Incorrect IP addres, out of range of values", __FUNCTION__,addr);
+         trace_msg(ERR_MSG, "[Line:%4d] '%s' - Incorrect IP addres, out of range of values", __LINE__,addr);
          return -1;
        }
      return 0;
    }
-   trace_msg(ERR_MSG, "[%s] '%s' - Incorrect IP addres 3", __FUNCTION__,addr);
+   trace_msg(ERR_MSG, "[Line:%4d] '%s' - Incorrect IP addres 3", __LINE__,addr);
    return -1;
  }
 
@@ -172,44 +207,43 @@ int main( int argc, char *argv[] ) {
         return 0;
 
     int sock = create_socket(port, servIP);
-    int size_of_mas;
+    int action = -1;
+    action = recv_value(sock);
+    trace_msg(DBG_MSG, "[Line:%4d] Client: action %d from server accept.\n", __LINE__,action);
+
+    int size_of_mas = 0;
     size_of_mas = recv_value(sock);
-    trace_msg(DBG_MSG, "[%s], Client: size_of_mas %d from server accept.\n", __FUNCTION__,size_of_mas);
-    int *mass;
+    trace_msg(DBG_MSG, "[Line:%4d] Client: size_of_mass %d from server accept.\n", __LINE__,size_of_mas);
+    
+    int *mass = NULL;
     mass = malloc(sizeof(int)*size_of_mas);
     mass = recv_data(sock, mass, size_of_mas);
-    
+    trace_msg(DBG_MSG, "[Line:%4d] Client: array from server accept.\n", __LINE__);
 /* Очень много сообщений в консоль
     for(int i = 0; i < size_of_mas; i++) {
         trace_msg(DBG_MSG, "mass[%d] = %d\n", i, mass[i]);
     }
 */
-    trace_msg(DBG_MSG, "[%s], Client: message from server accept.\n",__FUNCTION__);
-    int action;
-    int value;
-
-    action = recv_value(sock);
-    trace_msg(DBG_MSG, "[%s], Client: action %d from server accept.\n", __FUNCTION__,action);
-    
+    int value = 0;
     switch (action) { 
     case 0:
         // send_value(sock, point->action);
         value = find_value(mass, size_of_mas, action);
         send_value(sock, value);
-        trace_msg(DBG_MSG, "[%s], Client: action - find Max value in array (%d) \n",__FUNCTION__, value);
+        trace_msg(DBG_MSG, "[Line:%4d] Client: action - find Max value in array (%d) \n",__LINE__, value);
         break;
     case 1:
         value = find_value(mass, size_of_mas, action);
         send_value(sock, value);
-        trace_msg(DBG_MSG, "[%s], Client: action - find Min value in array (%d) \n",__FUNCTION__, value);
+        trace_msg(DBG_MSG, "[Line:%4d] Client: action - find Min value in array (%d) \n",__LINE__, value);
         break;
     case 2:
         mass = sort(mass, size_of_mas, action);
         send_mass(sock, mass, size_of_mas);
-        trace_msg(DBG_MSG, "[%s], Client: action - Sort array\n", __FUNCTION__);
+        trace_msg(DBG_MSG, "[Line:%4d] Client: action - Sort array\n", __LINE__);
         break;
     default:
-        trace_msg(ERR_MSG, "[%s], Client: action - Unknown action \n",__FUNCTION__);
+        trace_msg(ERR_MSG, "[Line:%4d] Client: action - Unknown action \n",__LINE__);
         break;
     }
     close(sock);
