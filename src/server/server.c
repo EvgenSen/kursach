@@ -168,7 +168,6 @@ int create_socket(int port_serv, char * tread_name) {
     trace_msg(ERR_MSG, "[Line:%4d] %s: connect() failed, socket = %d, port = %d", __LINE__, tread_name, sock, port_serv);
     trace_msg(ERR_MSG, "[Line:%4d] %s: \"%s\"", __LINE__, tread_name, strerror(errno));
     return -1;
-    // exit(1);
   }
 
   return sock;
@@ -227,8 +226,6 @@ int* recv_data(int sock, int* mass, int size_of_mas, char * tread_name) {
 
   while(bytesRecv != (size_of_mas*sizeof(int))) 
   {
-    // TODO: смещать массив при получении данных кусками
-    //bytesRecvTMP = recv(sock, mass + bytesRecv, sizeof(int)*size_of_mas - bytesRecv, 0);
     bytesRecvTMP = recv(sock, &mass[shift], sizeof(int)*size_of_mas - bytesRecvTMP, 0);
 
     if (bytesRecvTMP == 0)
@@ -250,6 +247,10 @@ int* recv_data(int sock, int* mass, int size_of_mas, char * tread_name) {
     }
     bytesRecv += bytesRecvTMP;
     shift = bytesRecv / sizeof(int);
+    /* (%d/%d)(%d/%d)
+     * Количество полученных байт и количество байт которые должны получить
+     * Количество полученных элементов и количество которое должны получить
+     */
     trace_msg(DBG_MSG, "[Line:%4d] Client: Data received (%d/%d)(%d/%d)",__LINE__, bytesRecv, size_of_mas*sizeof(int),
                                                                                    shift, size_of_mas);
   }

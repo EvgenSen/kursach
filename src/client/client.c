@@ -90,6 +90,7 @@ int* recv_data(int sock, int* mass, int size) {
     }
     else if (bytesRecvTMP > size*sizeof(int))
     {
+      // больше не должно происходить
       trace_msg(ERR_MSG, "[Line:%4d] Client: recv_data() failed, received extra data (%d/%d)", __LINE__, bytesRecv, size*sizeof(int));
     }
     bytesRecv += bytesRecvTMP;
