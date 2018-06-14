@@ -147,7 +147,45 @@ int check_sameport(struct prot_cl *check, int size) {
   return 0;
 }
 
-int create_socket(int port_serv, char * tread_name) {
+int check_ip(char *addr) {
+    if (!addr){
+        trace_msg(ERR_MSG, "[Line:%4d] Empty value ", __LINE__);
+        return -1;
+    }
+ 
+   int x[4];
+   int dot = 0;
+   int i = 0;
+ 
+   for (; i< (int)strlen((const char *)addr); i++)
+   {
+     if (addr[i] == '.')
+       dot++;
+     else if (addr[i] < 48 || addr[i] > 57) {
+       trace_msg(ERR_MSG, "[Line:%4d] '%s' - Incorrect IP addres 1", __LINE__,addr);
+       return -1;
+     }
+   }
+ 
+   if (dot != 3) {
+     trace_msg(ERR_MSG, "[Line:%4d] '%s' - Incorrect IP addres 2", __LINE__,addr);
+     return -1;
+   }
+ 
+   if ((sscanf(addr, "%d.%d.%d.%d", &x[0], &x[1], &x[2], &x[3])) == 4)
+   {
+     for (i = 0; i < 4; i++)
+       if (x[i] < 0 || x[i] > 255){
+         trace_msg(ERR_MSG, "[Line:%4d] '%s' - Incorrect IP addres, out of range of values", __LINE__,addr);
+         return -1;
+       }
+     return 0;
+   }
+   trace_msg(ERR_MSG, "[Line:%4d] '%s' - Incorrect IP addres 3", __LINE__,addr);
+   return -1;
+}
+
+int create_socket(int port_serv, char * tread_name, char *IP) {
 
   int sock;
 
@@ -161,7 +199,7 @@ int create_socket(int port_serv, char * tread_name) {
   /* Construct local address structure */
   memset(&echoServAddr, 0, sizeof(echoServAddr));   /* Zero out structure */
   echoServAddr.sin_family = AF_INET;                /* Internet address family */
-  echoServAddr.sin_addr.s_addr = htonl(INADDR_ANY); /* Any incoming interface */
+  echoServAddr.sin_addr.s_addr = inet_addr(IP);     /* Client's IP */
   echoServAddr.sin_port = htons(port_serv);         /* Local port */
 
   if (connect(sock, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr)) < 0) {
@@ -269,9 +307,13 @@ void *client(void *threadArgs)
 
   struct timeval start_time, end_time;
   gettimeofday(&start_time, 0);
+
+  char *servIP = "127.0.0.1"; // TODO: Get IP from GUI
+  if(check_ip(servIP))
+    return 0;
   
   int sock;
-  sock = create_socket(point->port_cl, thread_name);
+  sock = create_socket(point->port_cl, thread_name, servIP);
   if (sock == -1)
     return (void *)-1;
 
